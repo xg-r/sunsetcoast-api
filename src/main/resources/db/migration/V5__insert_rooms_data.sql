@@ -1,4 +1,4 @@
-insert into rooms (name, type, status, owner_id)
+insert into rooms (name, type, status, business_owner_id)
 values ('놀멍', 'SPACE_CARAVAN', 'ACTIVE', 1),
        ('물멍', 'SPACE_CARAVAN', 'ACTIVE', 1),
        ('쉬멍', 'SPACE_CARAVAN', 'ACTIVE', 1),
