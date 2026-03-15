@@ -14,13 +14,10 @@ private val logger = KotlinLogging.logger {}
 class RoomService(
     private val roomRepository: RoomRepository,
 ) {
-
     @Transactional(readOnly = true)
     fun findRooms(size: Int, page: Int): Page<RoomEntity> {
         val pageable = PageRequest.of(page - 1, size)
-        val foundRooms = roomRepository.findRooms(pageable)
-        logger.info { "room names: ${foundRooms.forEach { room -> room.name }}" }
-        logger.info { "business name: ${foundRooms.forEach { it.businessOwnerEntity.name }}" }
+        val foundRooms = roomRepository.findAll(pageable)
         return foundRooms
     }
 }
