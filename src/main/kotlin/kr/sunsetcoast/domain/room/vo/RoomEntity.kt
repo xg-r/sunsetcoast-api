@@ -5,8 +5,11 @@ import jakarta.persistence.Entity
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
+import jakarta.persistence.JoinColumn
+import jakarta.persistence.OneToOne
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
+import kr.sunsetcoast.domain.businessowner.vo.BusinessOwnerEntity
 
 @Entity
 @Table(
@@ -25,8 +28,9 @@ class RoomEntity(
     @Column(nullable = false, length = 30)
     val status: String,
 
-    @Column(name = "owner_id", nullable = false)
-    val ownerId: Long,
+    @OneToOne
+    @JoinColumn(name = "business_owner_id")
+    val businessOwnerEntity: BusinessOwnerEntity,
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
