@@ -33,6 +33,7 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-mysql")
     implementation("io.github.oshai:kotlin-logging-jvm:7.0.3")
+    implementation("com.jsoizo:kotlin-csv-jvm:1.10.0")
 }
 
 kotlin {
