@@ -1,12 +1,13 @@
-package kr.sunsetcoast.domain.settlement.vo
+package kr.sunsetcoast.domain.settlement
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kr.sunsetcoast.domain.settlement.reader.SettlementFileReader
+import kr.sunsetcoast.domain.settlement.vo.OtaPlatform
 import kr.sunsetcoast.infrastructure.csv.vo.CsvRows
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 
-private val logger = KotlinLogging.logger {}
+private val logger = KotlinLogging.logger { }
 
 @Service
 class SettlementService(
