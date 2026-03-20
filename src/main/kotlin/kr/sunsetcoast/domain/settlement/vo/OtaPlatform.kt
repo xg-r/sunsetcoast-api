@@ -1,7 +1,8 @@
 package kr.sunsetcoast.domain.settlement.vo
 
 enum class OtaPlatform {
-    DDNAYO, ;
+    DDNAYO, YEOGI, NOL,
+    ;
 
     companion object {
         fun from(value: String): OtaPlatform {
