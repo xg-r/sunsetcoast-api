@@ -1,4 +1,4 @@
-package kr.sunsetcoast.infrastructure.csv
+package kr.sunsetcoast.infrastructure.csv.reader
 
 import kr.sunsetcoast.domain.settlement.vo.OtaPlatform
 import kr.sunsetcoast.infrastructure.csv.vo.CsvRows

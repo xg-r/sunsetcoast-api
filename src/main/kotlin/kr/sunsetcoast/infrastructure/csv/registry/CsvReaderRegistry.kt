@@ -1,6 +1,7 @@
-package kr.sunsetcoast.infrastructure.csv
+package kr.sunsetcoast.infrastructure.csv.registry
 
 import kr.sunsetcoast.domain.settlement.vo.OtaPlatform
+import kr.sunsetcoast.infrastructure.csv.reader.CsvReader
 import org.springframework.stereotype.Component
 
 @Component
