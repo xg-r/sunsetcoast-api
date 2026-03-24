@@ -1,6 +1,6 @@
 package kr.sunsetcoast.controller.settlement.dto.response
 
-import kr.sunsetcoast.infrastructure.csv.vo.CsvRows
+import kr.sunsetcoast.domain.settlement.vo.CsvRows
 
 data class SettlementImportCsvResponseBody(
     val fileNames: List<String> = emptyList<String>(),

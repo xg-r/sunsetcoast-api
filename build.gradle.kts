@@ -35,6 +35,7 @@ dependencies {
     implementation("org.flywaydb:flyway-mysql")
     implementation("io.github.oshai:kotlin-logging-jvm:7.0.3")
     implementation("com.jsoizo:kotlin-csv-jvm:1.10.0")
+    implementation("org.apache.poi:poi:5.2.5")
 }
 
 kotlin {

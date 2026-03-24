@@ -1,5 +1,7 @@
 package kr.sunsetcoast.domain.settlement.vo
 
+import kr.sunsetcoast.domain.settlement.vo.OtaPlatform.entries
+
 enum class OtaPlatform {
     DDNAYO, YEOGI, NOL,
     ;

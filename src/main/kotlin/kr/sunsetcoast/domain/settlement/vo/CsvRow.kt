@@ -1,4 +1,4 @@
-package kr.sunsetcoast.infrastructure.csv.vo
+package kr.sunsetcoast.domain.settlement.vo
 
 data class CsvRow(
     private val values: Map<String, String>,
