@@ -29,10 +29,13 @@ dependencies {
     testImplementation("org.springframework.boot:spring-boot-starter-data-jpa-test")
     testImplementation("org.springframework.boot:spring-boot-starter-webmvc-test")
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
+    testImplementation("io.kotest:kotest-runner-junit5:5.9.1")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
     implementation("org.springframework.boot:spring-boot-starter-flyway")
     implementation("org.flywaydb:flyway-mysql")
     implementation("io.github.oshai:kotlin-logging-jvm:7.0.3")
+    implementation("com.jsoizo:kotlin-csv-jvm:1.10.0")
+    implementation("org.apache.poi:poi:5.2.5")
 }
 
 kotlin {
