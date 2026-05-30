@@ -32,7 +32,7 @@ class DdnayoXlsFIleReader : FileReader {
     }
 
     private fun readDto(multipartFile: MultipartFile): List<DdnayoSettlementDto> {
-        return multipartFile.inputStream.use { inputStream ->
+        multipartFile.inputStream.use { inputStream ->
             HSSFWorkbook(inputStream).use { workbook ->
                 val sheet = workbook.getSheetAt(0)
                 val headerRow = sheet.getRow(0)
