@@ -19,11 +19,12 @@ class SettlementNormalizerImpl(
         otaPlatform: OtaPlatform,
         files: List<MultipartFile>,
     ): List<SettlementData> {
+        logger.info { "Reading ${files.size} files" }
 
         val settlementData = files.map {
             val extension =
                 extractExtension(it.originalFilename ?: throw NoSuchElementException("file name should not be null"))
-            val fileReader = getStrategy(otaPlatform, extension)
+            val fileReader = getFileReaderByExtension(otaPlatform, extension)
             fileReader.read(it)
         }
 
@@ -40,7 +41,7 @@ class SettlementNormalizerImpl(
         }
     }
 
-    private fun getStrategy(
+    private fun getFileReaderByExtension(
         platform: OtaPlatform,
         extension: FileExtension,
     ): FileReader {
