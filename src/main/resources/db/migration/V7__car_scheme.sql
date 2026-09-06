@@ -1,0 +1,6 @@
+CREATE TABLE car
+(
+    id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+    car_number VARCHAR(20) NOT NULL UNIQUE,
+    car_model  VARCHAR(50) NOT NULL
+);
