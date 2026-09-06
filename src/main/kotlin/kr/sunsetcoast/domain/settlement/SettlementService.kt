@@ -1,6 +1,7 @@
 package kr.sunsetcoast.domain.settlement
 
 import io.github.oshai.kotlinlogging.KotlinLogging
+import kr.sunsetcoast.domain.room.repository.RoomRepository
 import kr.sunsetcoast.domain.settlement.normalizer.SettlementNormalizer
 import kr.sunsetcoast.domain.settlement.vo.OtaPlatform
 import kr.sunsetcoast.domain.settlement.vo.SettlementEntity
@@ -12,6 +13,7 @@ private val logger = KotlinLogging.logger { }
 @Service
 class SettlementService(
     private val settlementNormalizer: SettlementNormalizer,
+    private val roomRepository: RoomRepository,
 ) {
     fun import(
         otaPlatform: OtaPlatform,
