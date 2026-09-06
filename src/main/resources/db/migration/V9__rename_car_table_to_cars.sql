@@ -1,0 +1,1 @@
+RENAME TABLE car TO cars;
