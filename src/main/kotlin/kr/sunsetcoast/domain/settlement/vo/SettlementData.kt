@@ -5,7 +5,6 @@ import java.time.LocalDate
 import java.time.LocalDateTime
 
 data class SettlementData(
-    val fileName: String,
     val settlementFiles: List<SettlementFile>
 )
 
