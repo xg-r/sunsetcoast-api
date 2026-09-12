@@ -19,6 +19,13 @@ class CarReservationCustomerEntity(
     @Column(name = "identity_hash", nullable = false, length = 64)
     val identityHash: String,
 
+    @Column(
+        name = "identity_encrypted",
+        nullable = false,
+        columnDefinition = "VARBINARY(512)"
+    )
+    val identityEncrypted: ByteArray,
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
