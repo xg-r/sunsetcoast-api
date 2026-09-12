@@ -15,6 +15,7 @@ class CarEntity(
 
     @Column(name = "car_model", nullable = false)
     val carModel: String,
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
