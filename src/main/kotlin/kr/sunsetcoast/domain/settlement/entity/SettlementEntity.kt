@@ -1,4 +1,4 @@
-package kr.sunsetcoast.domain.settlement.vo
+package kr.sunsetcoast.domain.settlement.entity
 
 import jakarta.persistence.Column
 import jakarta.persistence.ConstraintMode
@@ -14,8 +14,9 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
-import kr.sunsetcoast.domain.businessowner.vo.BusinessOwnerEntity
-import kr.sunsetcoast.domain.room.vo.RoomEntity
+import kr.sunsetcoast.domain.businessowner.entity.BusinessOwnerEntity
+import kr.sunsetcoast.domain.room.entity.RoomEntity
+import kr.sunsetcoast.domain.settlement.vo.OtaPlatform
 import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalDateTime

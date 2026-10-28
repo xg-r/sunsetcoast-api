@@ -2,7 +2,7 @@ package kr.sunsetcoast.controller.settlement
 
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementImportCsvResponseBody
 import kr.sunsetcoast.domain.settlement.vo.OtaPlatform
-import kr.sunsetcoast.domain.settlement.SettlementService
+import kr.sunsetcoast.domain.settlement.service.SettlementService
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping

@@ -1,4 +1,4 @@
-package kr.sunsetcoast.domain.carreservations.vo
+package kr.sunsetcoast.domain.carreservation.entity
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
@@ -10,8 +10,8 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
 import jakarta.persistence.OneToOne
 import jakarta.persistence.Table
-import kr.sunsetcoast.domain.car.vo.CarEntity
-import kr.sunsetcoast.domain.room.vo.RoomEntity
+import kr.sunsetcoast.domain.car.entity.CarEntity
+import kr.sunsetcoast.domain.room.entity.RoomEntity
 import java.time.LocalDateTime
 
 @Entity

@@ -1,4 +1,4 @@
-package kr.sunsetcoast.domain.room.vo
+package kr.sunsetcoast.domain.room.entity
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
@@ -10,7 +10,7 @@ import jakarta.persistence.JoinColumn
 import jakarta.persistence.OneToOne
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
-import kr.sunsetcoast.domain.businessowner.vo.BusinessOwnerEntity
+import kr.sunsetcoast.domain.businessowner.entity.BusinessOwnerEntity
 
 @Entity
 @Table(

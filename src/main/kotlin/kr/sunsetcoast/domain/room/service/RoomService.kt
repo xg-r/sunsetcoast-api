@@ -2,7 +2,7 @@ package kr.sunsetcoast.domain.room.service
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kr.sunsetcoast.domain.room.repository.RoomRepository
-import kr.sunsetcoast.domain.room.vo.RoomEntity
+import kr.sunsetcoast.domain.room.entity.RoomEntity
 import org.springframework.data.domain.Page
 import org.springframework.data.domain.PageRequest
 import org.springframework.stereotype.Service

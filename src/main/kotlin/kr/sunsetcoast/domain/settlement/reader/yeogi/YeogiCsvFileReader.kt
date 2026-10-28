@@ -1,4 +1,4 @@
-package kr.sunsetcoast.domain.settlement.reader.impl
+package kr.sunsetcoast.domain.settlement.reader.yeogi
 
 import kr.sunsetcoast.domain.settlement.reader.FileExtension
 import kr.sunsetcoast.domain.settlement.reader.FileReader

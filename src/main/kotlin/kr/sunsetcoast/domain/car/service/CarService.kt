@@ -1,12 +1,12 @@
 package kr.sunsetcoast.domain.car.service
 
-import kr.sunsetcoast.domain.car.repository.CarJpaRepository
-import kr.sunsetcoast.domain.car.vo.CarEntity
+import kr.sunsetcoast.domain.car.repository.CarRepository
+import kr.sunsetcoast.domain.car.entity.CarEntity
 import org.springframework.stereotype.Service
 
 @Service
 class CarService(
-    val carJpaRepository: CarJpaRepository,
+    val carRepository: CarRepository,
 ) {
-    fun getCars(): List<CarEntity> = carJpaRepository.findAll()
+    fun getCars(): List<CarEntity> = carRepository.findAll()
 }

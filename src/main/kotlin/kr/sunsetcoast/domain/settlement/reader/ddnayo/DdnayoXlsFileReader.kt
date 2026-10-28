@@ -13,7 +13,7 @@ import org.springframework.stereotype.Component
 import org.springframework.web.multipart.MultipartFile
 
 @Component
-class DdnayoXlsFIleReader : FileReader {
+class DdnayoXlsFileReader : FileReader {
     private val dataFormatter = DataFormatter()
 
     override fun supports(platform: OtaPlatform, extension: FileExtension): Boolean {

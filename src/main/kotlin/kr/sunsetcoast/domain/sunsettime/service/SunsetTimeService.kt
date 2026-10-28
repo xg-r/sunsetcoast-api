@@ -1,4 +1,4 @@
-package kr.sunsetcoast.domain.sunsettime
+package kr.sunsetcoast.domain.sunsettime.service
 
 import kr.sunsetcoast.domain.sunsettime.vo.SunsetDay
 import kr.sunsetcoast.domain.sunsettime.vo.SunsetTime

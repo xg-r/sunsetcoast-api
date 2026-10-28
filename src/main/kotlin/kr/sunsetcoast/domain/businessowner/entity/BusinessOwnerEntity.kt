@@ -1,4 +1,4 @@
-package kr.sunsetcoast.domain.businessowner.vo
+package kr.sunsetcoast.domain.businessowner.entity
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity

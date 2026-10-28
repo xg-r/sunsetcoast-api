@@ -1,4 +1,4 @@
-package kr.sunsetcoast.domain.car.vo
+package kr.sunsetcoast.domain.car.entity
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity

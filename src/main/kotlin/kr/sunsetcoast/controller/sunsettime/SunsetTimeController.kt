@@ -1,7 +1,7 @@
 package kr.sunsetcoast.controller.sunsettime
 
 import kr.sunsetcoast.controller.sunsettime.dto.response.SunsetTimeResponseBody
-import kr.sunsetcoast.domain.sunsettime.SunsetTimeService
+import kr.sunsetcoast.domain.sunsettime.service.SunsetTimeService
 import kr.sunsetcoast.domain.sunsettime.vo.SunsetTime
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping

@@ -1,4 +1,4 @@
-package kr.sunsetcoast.domain.carreservations.vo
+package kr.sunsetcoast.domain.carreservation.entity
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity

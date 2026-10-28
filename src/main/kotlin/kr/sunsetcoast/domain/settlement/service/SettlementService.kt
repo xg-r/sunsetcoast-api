@@ -1,10 +1,10 @@
-package kr.sunsetcoast.domain.settlement
+package kr.sunsetcoast.domain.settlement.service
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kr.sunsetcoast.domain.room.repository.RoomRepository
 import kr.sunsetcoast.domain.settlement.normalizer.SettlementNormalizer
 import kr.sunsetcoast.domain.settlement.vo.OtaPlatform
-import kr.sunsetcoast.domain.settlement.vo.SettlementEntity
+import kr.sunsetcoast.domain.settlement.entity.SettlementEntity
 import org.springframework.stereotype.Service
 import org.springframework.web.multipart.MultipartFile
 
