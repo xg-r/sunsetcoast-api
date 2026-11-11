@@ -2,11 +2,14 @@ package kr.sunsetcoast.domain.businessowner.entity
 
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
+import jakarta.persistence.EnumType
+import jakarta.persistence.Enumerated
 import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
+import kr.sunsetcoast.domain.businessowner.vo.OwnershipType
 import java.time.LocalDateTime
 
 @Entity
@@ -24,8 +27,12 @@ class BusinessOwnerEntity(
     @Column(nullable = false)
     val name: String,
 
-    @Column(name = "business_number", nullable = false, length = 20)
-    val businessNumber: String,
+    @Enumerated(EnumType.STRING)
+    @Column(name = "ownership_type", nullable = false, length = 20)
+    val ownershipType: OwnershipType = OwnershipType.FAMILY,
+
+    @Column(name = "business_number", length = 20)
+    val businessNumber: String? = null,
 
     @Column(name = "representative_name", length = 100)
     val representativeName: String? = null,
@@ -36,8 +43,8 @@ class BusinessOwnerEntity(
     @Column(length = 255)
     val email: String? = null,
 
-    @Column(columnDefinition = "text", nullable = false)
-    val address: String,
+    @Column(columnDefinition = "text")
+    val address: String? = null,
 
     @Column(nullable = false, length = 30)
     val status: String,
