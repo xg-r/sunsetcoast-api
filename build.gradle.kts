@@ -37,6 +37,7 @@ dependencies {
     implementation("com.jsoizo:kotlin-csv-jvm:1.10.0")
     implementation("org.apache.poi:poi:5.2.5")
     implementation("org.apache.poi:poi-ooxml:5.2.5")
+    implementation("org.springdoc:springdoc-openapi-starter-webmvc-ui:3.0.3")
 }
 
 kotlin {

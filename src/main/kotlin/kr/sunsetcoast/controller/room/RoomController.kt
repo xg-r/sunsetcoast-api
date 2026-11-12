@@ -8,9 +8,9 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 class RoomController(
     private val roomService: RoomService,
-) {
+) : RoomControllerDocs {
     @GetMapping("/rooms")
-    fun getRooms(@RequestParam size: Int, @RequestParam page: Int): String {
+    override fun getRooms(@RequestParam size: Int, @RequestParam page: Int): String {
         roomService.findRooms(size = size, page = page)
         return "OK"
     }

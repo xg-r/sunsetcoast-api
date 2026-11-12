@@ -1,11 +1,15 @@
 package kr.sunsetcoast.controller.sunsettime.dto.response
 
+import io.swagger.v3.oas.annotations.media.Schema
 import kr.sunsetcoast.domain.sunsettime.vo.SunsetDay
 import kr.sunsetcoast.domain.sunsettime.vo.SunsetTime
 import java.time.format.DateTimeFormatter
 
+@Schema(description = "오늘·내일 일몰 시각")
 data class SunsetTimeResponseBody(
+    @field:Schema(description = "오늘")
     val today: SunsetDayResponseBody,
+    @field:Schema(description = "내일")
     val tomorrow: SunsetDayResponseBody,
 ) {
     companion object {
@@ -18,9 +22,12 @@ data class SunsetTimeResponseBody(
     }
 }
 
+@Schema(description = "하루의 일몰 시각")
 data class SunsetDayResponseBody(
-    val date: String,   // YYYY-MM-DD (KST)
-    val sunset: String, // HH:mm, 24시간, 두 자리 (KST)
+    @field:Schema(description = "날짜 (YYYY-MM-DD, KST)", example = "2026-11-12")
+    val date: String,
+    @field:Schema(description = "일몰 시각 (HH:mm, 24시간, KST)", example = "17:24")
+    val sunset: String,
 ) {
     companion object {
         private val HH_MM: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm")

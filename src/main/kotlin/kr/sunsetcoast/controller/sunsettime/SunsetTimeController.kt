@@ -10,9 +10,9 @@ import org.springframework.web.bind.annotation.RestController
 @RestController
 class SunsetTimeController(
     private val sunsetTimeService: SunsetTimeService,
-) {
+) : SunsetTimeControllerDocs {
     @GetMapping("/sunset-time")
-    fun getSunsetTime(): ResponseEntity<SunsetTimeResponseBody> {
+    override fun getSunsetTime(): ResponseEntity<SunsetTimeResponseBody> {
         val sunsetTime: SunsetTime =sunsetTimeService.getSunsetTime()
         return ResponseEntity.ok(SunsetTimeResponseBody.from(sunsetTime))
     }
