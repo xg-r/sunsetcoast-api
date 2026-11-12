@@ -18,6 +18,7 @@ import kr.sunsetcoast.domain.reservation.vo.PaymentReceiver
 import kr.sunsetcoast.domain.reservation.vo.ReservationStatus
 import kr.sunsetcoast.domain.reservation.vo.SalesChannel
 import kr.sunsetcoast.domain.room.entity.RoomEntity
+import java.math.BigDecimal
 import java.time.LocalDate
 import java.time.LocalDateTime
 
@@ -57,8 +58,28 @@ class ReservationEntity(
     @Column(name = "check_in_date")
     var checkInDate: LocalDate? = null,
 
+    /** 총 박수 (떠나요: 파일의 이용박수, 여기어때/NOL: 입실 후 취소를 뺀 1박 행 수) */
     @Column(name = "nights")
     var nights: Int? = null,
+
+    /** 주말 밤(금·토, 공휴일 전날)이 하나라도 있으면 true. 숙박일을 모르면 null */
+    @Column(name = "weekend")
+    var weekend: Boolean? = null,
+
+    /** 성수기 밤이 하나라도 있으면 true, 판단된 밤이 모두 비수기면 false, 판단된 밤이 없으면 null */
+    @Column(name = "peak_season")
+    var peakSeason: Boolean? = null,
+
+    /** 매출 합계 (1박 매출 + 입실 후 취소 차감 + 취소수수료). 박별 요금이 달라도 그대로 합산한다. */
+    @Column(name = "gross_amount", nullable = false, precision = 15, scale = 2)
+    var grossAmount: BigDecimal = BigDecimal.ZERO,
+
+    @Column(name = "commission_amount", nullable = false, precision = 15, scale = 2)
+    var commissionAmount: BigDecimal = BigDecimal.ZERO,
+
+    /** 정산금액(입금액) 합계 */
+    @Column(name = "net_amount", nullable = false, precision = 15, scale = 2)
+    var netAmount: BigDecimal = BigDecimal.ZERO,
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
@@ -96,6 +117,19 @@ class ReservationEntity(
         }
         if (this.bookerName.isNullOrBlank() && !bookerName.isNullOrBlank()) this.bookerName = bookerName
         if (this.reservedAt == null && reservedAt != null) this.reservedAt = reservedAt
+    }
+
+    fun applyStayFlags(weekend: Boolean?, peakSeason: Boolean?) {
+        this.weekend = weekend
+        this.peakSeason = peakSeason
+        this.updatedAt = LocalDateTime.now()
+    }
+
+    fun applyTotals(gross: BigDecimal, commission: BigDecimal, net: BigDecimal) {
+        this.grossAmount = gross
+        this.commissionAmount = commission
+        this.netAmount = net
+        this.updatedAt = LocalDateTime.now()
     }
 
     fun applyStay(checkInDate: LocalDate?, nights: Int?, status: ReservationStatus) {

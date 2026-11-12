@@ -25,6 +25,7 @@ import kr.sunsetcoast.domain.settlement.repository.SettlementLineRevisionReposit
 import kr.sunsetcoast.domain.settlement.vo.RowIssue
 import kr.sunsetcoast.domain.settlement.vo.SettlementImportResult
 import kr.sunsetcoast.domain.settlement.vo.SettlementLineType
+import kr.sunsetcoast.domain.staycalendar.service.StayCalendarService
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.interceptor.TransactionAspectSupport
@@ -53,6 +54,7 @@ class SettlementImportService(
     private val importBatchRepository: ImportBatchRepository,
     private val importRowRepository: ImportRowRepository,
     private val jsonMapper: JsonMapper,
+    private val stayCalendarService: StayCalendarService,
 ) {
     @Transactional
     fun import(fileName: String, bytes: ByteArray, dryRun: Boolean): SettlementImportResult {
@@ -97,6 +99,7 @@ class SettlementImportService(
         }
 
         context.touchedReservations.values.forEach { refreshStay(it, context.explicitStays[it.id]) }
+        stayCalendarService.refresh(context.touchedReservations.values)
 
         logger.info {
             "settlement import file=$fileName platform=${parsed.platform} dryRun=$dryRun total=${batch.totalRows} " +
@@ -209,14 +212,21 @@ class SettlementImportService(
     }
 
     /**
-     * 정산 행으로 입실일/박수/상태를 다시 계산한다.
-     * 여기어때/NOL은 연박이 여러 주에 걸쳐 정산되므로 지금까지 들어온 1박 행을 모두 본다.
+     * 정산 행으로 입실일/박수/상태/금액 합계를 다시 계산한다.
+     * 여기어때/NOL은 1박마다 행이 생기고 연박이 여러 주에 걸쳐 정산되므로, 예약번호로 묶인 행을 모두 본다.
+     * (예: 3박 예약 → 1박 행 3개 → 예약 1건, 박수 3, 매출 = 세 박 매출의 합)
      */
     private fun refreshStay(reservation: ReservationEntity, explicitStay: Pair<LocalDate, Int?>?) {
         val lines = settlementLineRepository.findByReservationId(reservation.id!!)
         val reversed = lines.filter { it.lineType == SettlementLineType.ROOM_NIGHT_REVERSAL }.map { it.stayDate }.toSet()
         val stayDates = lines.filter { it.lineType == SettlementLineType.ROOM_NIGHT }.map { it.stayDate }.toSet() - reversed
         val status = if (stayDates.isEmpty()) ReservationStatus.CANCELLED else ReservationStatus.CONFIRMED
+
+        reservation.applyTotals(
+            gross = lines.sumOf { it.grossAmount },
+            commission = lines.sumOf { it.commissionAmount },
+            net = lines.sumOf { it.netAmount },
+        )
 
         when {
             explicitStay != null -> reservation.applyStay(explicitStay.first, explicitStay.second, status)

@@ -14,4 +14,6 @@ interface SettlementLineRepository : JpaRepository<SettlementLineEntity, Long> {
     ): SettlementLineEntity?
 
     fun findByReservationId(reservationId: Long): List<SettlementLineEntity>
+
+    fun findByReservationIdIn(reservationIds: Collection<Long>): List<SettlementLineEntity>
 }
