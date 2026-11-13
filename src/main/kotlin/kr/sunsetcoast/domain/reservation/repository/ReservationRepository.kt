@@ -22,6 +22,27 @@ interface ReservationRepository : JpaRepository<ReservationEntity, Long> {
         @Param("to") to: LocalDate,
     ): List<ReservationEntity>
 
+    /**
+     * 기준일이 기간 안에 있는 예약. 기준일은 입실일이고, 입실일을 모르는 예약(취소수수료만 있는 예약)은 매출인식일.
+     */
+    @Query(
+        """
+        select r from ReservationEntity r join fetch r.room room
+        where room.property.id = :propertyId
+          and (
+            r.checkInDate between :from and :to
+            or (r.checkInDate is null and exists (
+                select 1 from SettlementLineEntity s where s.reservation = r and s.stayDate between :from and :to
+            ))
+          )
+        """
+    )
+    fun findByPropertyAndBaseDateBetween(
+        @Param("propertyId") propertyId: Long,
+        @Param("from") from: LocalDate,
+        @Param("to") to: LocalDate,
+    ): List<ReservationEntity>
+
     @Query("select r from ReservationEntity r join fetch r.room")
     fun findAllWithRoom(): List<ReservationEntity>
 }
