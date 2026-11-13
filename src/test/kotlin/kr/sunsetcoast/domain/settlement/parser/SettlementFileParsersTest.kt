@@ -159,6 +159,7 @@ class SettlementFileParsersTest : FunSpec({
 
             val file = parsers.parse(bytes)
 
+            file.rows.first().lines.first().reservedAt shouldBe java.time.LocalDateTime.of(2026, 8, 13, 0, 0)
             file.platform shouldBe OtaPlatform.NOL
             file.rows shouldHaveSize 2
             val first = file.rows[0].lines.single()
@@ -180,5 +181,11 @@ class SettlementFileParsersTest : FunSpec({
 
     test("엑셀이 아닌 파일은 거부한다") {
         shouldThrow<IllegalArgumentException> { parsers.parse("hello".toByteArray()) }
+    }
+
+    test("NOL 예약번호 앞 6자리는 예약일") {
+        NolSettlementParser.reservedDateOf("2610131064116996") shouldBe java.time.LocalDateTime.of(2026, 10, 13, 0, 0)
+        NolSettlementParser.reservedDateOf("PHC26032700062") shouldBe null
+        NolSettlementParser.reservedDateOf("2613991064116996") shouldBe null
     }
 })

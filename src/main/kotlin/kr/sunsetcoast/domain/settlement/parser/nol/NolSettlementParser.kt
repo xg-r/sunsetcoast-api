@@ -7,6 +7,8 @@ import kr.sunsetcoast.domain.settlement.parser.sheet.SheetRow
 import kr.sunsetcoast.domain.settlement.vo.SettlementAmounts
 import kr.sunsetcoast.domain.settlement.vo.SettlementLineType
 import org.springframework.stereotype.Component
+import java.time.LocalDate
+import java.time.LocalDateTime
 
 /**
  * NOL(야놀자) 정산상세내역 (사업자 계정별, 주 1회, 1박 = 1행).
@@ -46,6 +48,7 @@ class NolSettlementParser : SettlementFileParser {
         return listOf(
             ParsedSettlementLine(
                 reservationNumber = reservationNumber,
+                reservedAt = reservedDateOf(reservationNumber),
                 roomName = row.required(ROOM),
                 lineType = lineType,
                 stayDate = row.date(STAY_DATE),
@@ -57,6 +60,17 @@ class NolSettlementParser : SettlementFileParser {
     }
 
     companion object {
+        private val NUMBER_DATE = Regex("""^(\d{2})(\d{2})(\d{2})\d{10}$""")
+
+        /**
+         * NOL 정산 파일에는 예약 일시가 없다. 예약번호 앞 6자리가 예약일(yyMMdd)이다
+         * (2026년 10월 NOL 예약 파일 59건의 '예약 일시'와 모두 일치. 뒤 자리는 시각이 아닐 때가 있어 날짜만 쓴다).
+         */
+        fun reservedDateOf(reservationNumber: String): LocalDateTime? {
+            val (yy, mm, dd) = NUMBER_DATE.matchEntire(reservationNumber)?.destructured ?: return null
+            return runCatching { LocalDate.of(2000 + yy.toInt(), mm.toInt(), dd.toInt()).atStartOfDay() }.getOrNull()
+        }
+
         const val SETTLED_ON = "정산일"
         const val STAY_DATE = "정산 대상 기간"
         const val RESERVATION_NUMBER = "예약번호"
