@@ -17,7 +17,11 @@ import java.time.LocalDateTime
 class UserService(
     private val userRepository: UserRepository,
     private val roleRepository: RoleRepository,
-    /** 로그인하면 SUPER_ADMIN이 되는 계정 ("KAKAO:12345,NAVER:abc"). 첫 본사 계정을 정할 때 쓴다 */
+    /**
+     * 로그인하면 SUPER_ADMIN이 되는 계정. 첫 본사 계정을 정할 때 쓴다.
+     * "플랫폼:계정 번호" 또는 "플랫폼:이메일" ("KAKAO:12345,NAVER:someone@naver.com").
+     * 이메일은 그 플랫폼으로 로그인했을 때 플랫폼이 보내 준 이메일과만 맞춰 본다 (다른 플랫폼에 같은 이메일을 적어 둔 계정은 안 된다)
+     */
     @Value("\${sunsetcoast.auth.super-admins:}") superAdmins: String,
 ) {
     private val superAdminKeys: Set<String> =
@@ -50,7 +54,7 @@ class UserService(
         birthday?.let { user.birthday = it }
         mobile?.let { user.mobile = it }
         user.lastLoginAt = LocalDateTime.now()
-        if (user.providerKey.uppercaseProvider() in superAdminKeys && !user.hasRole(UserRole.SUPER_ADMIN)) {
+        if (isConfiguredSuperAdmin(user) && !user.hasRole(UserRole.SUPER_ADMIN)) {
             user.roles += rolesOf(setOf(UserRole.SUPER_ADMIN))
         }
         return user
@@ -90,5 +94,15 @@ class UserService(
             check(found.size == codes.size) { "roles 테이블에 없는 역할입니다: ${codes - found.map { it.code }.toSet()}" }
         }
 
-    private fun String.uppercaseProvider(): String = substringBefore(':').uppercase() + ":" + substringAfter(':', "")
+    private fun isConfiguredSuperAdmin(user: UserEntity): Boolean {
+        if (user.providerKey.uppercaseProvider() in superAdminKeys) return true
+        val email = user.email?.trim()?.lowercase() ?: return false
+        return "${user.provider.name}:$email" in superAdminKeys
+    }
+
+    /** "naver:Abc@Naver.com" → "NAVER:abc@naver.com". 계정 번호는 대소문자를 구분하므로 이메일만 소문자로 맞춘다 */
+    private fun String.uppercaseProvider(): String {
+        val value = substringAfter(':', "")
+        return substringBefore(':').uppercase() + ":" + if ('@' in value) value.lowercase() else value
+    }
 }

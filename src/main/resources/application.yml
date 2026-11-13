@@ -46,6 +46,13 @@ spring:
             user-info-uri: https://kapi.kakao.com/v2/user/me
             user-name-attribute: id
 
+# API 문서(Swagger)는 기본으로 끈다. 운영에서는 문서 경로가 아예 없고(인증 없이 열지도 않는다), local 프로필에서만 켠다
+springdoc:
+  api-docs:
+    enabled: false
+  swagger-ui:
+    enabled: false
+
 sunsetcoast:
   auth:
     # 로그인하면 슈퍼어드민이 되는 계정. 첫 본사 계정을 정할 때만 쓴다 ("KAKAO:123,NAVER:abc")
