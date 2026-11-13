@@ -1,6 +1,12 @@
 package kr.sunsetcoast.controller.settlement
 
 import kr.sunsetcoast.controller.settlement.dto.request.ResolveUnmappedRowRequestBody
+import kr.sunsetcoast.controller.settlement.dto.request.SettlementWeekCheckRequestBody
+import kr.sunsetcoast.controller.settlement.dto.response.SettlementWeekCheckResponseBody
+import kr.sunsetcoast.domain.reservation.vo.OtaPlatform
+import org.springframework.web.bind.annotation.DeleteMapping
+import org.springframework.http.HttpStatus
+import org.springframework.web.bind.annotation.ResponseStatus
 import kr.sunsetcoast.controller.settlement.dto.response.ImportBatchResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.ResolveUnmappedRowResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementFileCoverageResponseBody
@@ -55,6 +61,21 @@ class SettlementController(
     @GetMapping("/coverage", version = "1.0")
     override fun getCoverage(): List<SettlementFileCoverageResponseBody> =
         settlementCoverageService.findSettlementFiles().map { SettlementFileCoverageResponseBody.from(it) }
+
+    @GetMapping("/coverage/checks", version = "1.0")
+    override fun getWeekChecks(): List<SettlementWeekCheckResponseBody> =
+        settlementCoverageService.findWeekChecks().map { SettlementWeekCheckResponseBody.from(it) }
+
+    @PostMapping("/coverage/checks", version = "1.0")
+    override fun checkWeek(@RequestBody body: SettlementWeekCheckRequestBody): SettlementWeekCheckResponseBody {
+        val platform = runCatching { OtaPlatform.valueOf(body.platform) }.getOrNull()
+            ?: throw IllegalArgumentException("알 수 없는 플랫폼입니다: ${body.platform}")
+        return SettlementWeekCheckResponseBody.from(settlementCoverageService.checkWeek(platform, body.account, body.weekStart, body.note))
+    }
+
+    @DeleteMapping("/coverage/checks/{id}", version = "1.0")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    override fun uncheckWeek(@PathVariable id: Long) = settlementCoverageService.uncheckWeek(id)
 
     @GetMapping("/unmapped-rows", version = "1.0")
     override fun getUnmappedRows(): List<UnmappedRowResponseBody> =

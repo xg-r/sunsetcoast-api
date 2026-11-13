@@ -11,6 +11,8 @@ import kr.sunsetcoast.common.response.ErrorResponse
 import kr.sunsetcoast.controller.settlement.dto.request.ResolveUnmappedRowRequestBody
 import kr.sunsetcoast.controller.settlement.dto.response.ImportBatchResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementFileCoverageResponseBody
+import kr.sunsetcoast.controller.settlement.dto.response.SettlementWeekCheckResponseBody
+import kr.sunsetcoast.controller.settlement.dto.request.SettlementWeekCheckRequestBody
 import kr.sunsetcoast.controller.settlement.dto.response.ResolveUnmappedRowResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.UnmappedRowResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementImportResponseBody
@@ -66,6 +68,18 @@ interface SettlementControllerDocs {
             "화면은 계정별로 주마다 파일이 있는지 보여 주어 누락을 찾는다.",
     )
     fun getCoverage(): List<SettlementFileCoverageResponseBody>
+
+    @Operation(summary = "확인 완료로 표시한 주 목록", description = "정산 파일이 없지만 관리자가 확인한 주 (예: 그 주 판매 없음).")
+    fun getWeekChecks(): List<SettlementWeekCheckResponseBody>
+
+    @Operation(
+        summary = "파일 없는 주를 확인 완료로 표시",
+        description = "정산 계정·주(월요일)마다 하나. 이미 표시돼 있으면 메모만 바꾼다. 화면에서는 업로드된 주처럼 취급한다.",
+    )
+    fun checkWeek(body: SettlementWeekCheckRequestBody): SettlementWeekCheckResponseBody
+
+    @Operation(summary = "확인 완료 표시 취소")
+    fun uncheckWeek(@Parameter(description = "확인 표시 ID") id: Long)
 
     @Operation(
         summary = "미매핑 행 목록",
