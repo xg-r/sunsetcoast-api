@@ -12,10 +12,20 @@ data class UserResponseBody(
     val providerKey: String,
     @field:Schema(description = "닉네임", nullable = true)
     val nickname: String?,
+    @field:Schema(description = "이름", nullable = true)
+    val name: String?,
     @field:Schema(description = "이메일", nullable = true)
     val email: String?,
-    @field:Schema(description = "역할", example = "USER")
+    @field:Schema(description = "성별", example = "FEMALE", nullable = true)
+    val gender: String?,
+    @field:Schema(description = "생일 (MM-DD)", example = "03-15", nullable = true)
+    val birthday: String?,
+    @field:Schema(description = "휴대전화", example = "010-1234-5678", nullable = true)
+    val mobile: String?,
+    @field:Schema(description = "가장 높은 역할 (역할이 여러 개면 SUPER_ADMIN > SITE_MANAGER > USER 순)", example = "USER")
     val role: String,
+    @field:Schema(description = "가진 역할 전체", example = "[\"SITE_MANAGER\", \"USER\"]")
+    val roles: List<String>,
     @field:Schema(description = "가입 시각", example = "2026-11-13T15:02:11")
     val createdAt: String,
     @field:Schema(description = "마지막 로그인", nullable = true)
@@ -27,8 +37,13 @@ data class UserResponseBody(
             provider = user.provider.name,
             providerKey = user.providerKey,
             nickname = user.nickname,
+            name = user.name,
             email = user.email,
-            role = user.role.name,
+            gender = user.gender?.name,
+            birthday = user.birthday,
+            mobile = user.mobile,
+            role = user.primaryRole.name,
+            roles = user.roleCodes.map { it.name },
             createdAt = user.createdAt.withNano(0).toString(),
             lastLoginAt = user.lastLoginAt?.withNano(0)?.toString(),
         )

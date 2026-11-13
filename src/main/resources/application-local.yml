@@ -4,6 +4,9 @@ server:
     max-part-count: 200
 
 spring:
+  config:
+    # OAuth 키 등 비밀값은 프로젝트 루트의 local-secrets.yml 에 둔다 (gitignore, 없어도 실행됨)
+    import: optional:file:./local-secrets.yml
   servlet:
     multipart:
       max-file-size: 10MB

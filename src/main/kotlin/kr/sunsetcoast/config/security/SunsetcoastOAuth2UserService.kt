@@ -14,7 +14,16 @@ class SunsetcoastOAuth2UserService(
     override fun loadUser(userRequest: OAuth2UserRequest): OAuth2User {
         val attributes = super.loadUser(userRequest).attributes
         val profile = OAuthUserProfile.of(userRequest.clientRegistration.registrationId, attributes)
-        val user = userService.recordLogin(profile.provider, profile.providerUserId, profile.nickname, profile.email)
-        return LoginUser(user.id!!, user.role)
+        val user = userService.recordLogin(
+            provider = profile.provider,
+            providerUserId = profile.providerUserId,
+            nickname = profile.nickname,
+            email = profile.email,
+            name = profile.name,
+            gender = profile.gender,
+            birthday = profile.birthday,
+            mobile = profile.mobile,
+        )
+        return LoginUser(user.id!!, user.roleCodes)
     }
 }

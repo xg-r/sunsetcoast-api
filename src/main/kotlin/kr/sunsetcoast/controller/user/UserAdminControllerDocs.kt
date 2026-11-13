@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.tags.Tag
 import kr.sunsetcoast.controller.user.dto.request.ChangeRoleRequestBody
+import kr.sunsetcoast.controller.user.dto.request.ChangeRolesRequestBody
 import kr.sunsetcoast.controller.user.dto.response.UserResponseBody
 
 @Tag(name = "User Admin", description = "사용자 관리 (슈퍼어드민 전용)")
@@ -12,11 +13,20 @@ interface UserAdminControllerDocs {
     fun getUsers(): List<UserResponseBody>
 
     @Operation(
-        summary = "역할 변경",
-        description = "SUPER_ADMIN, SITE_MANAGER, USER. 마지막 슈퍼어드민은 내릴 수 없다. 바꾼 역할은 그 사용자의 다음 요청부터 적용된다.",
+        summary = "역할 변경 (하나로)",
+        description = "가진 역할을 모두 지우고 이 역할 하나만 준다. SUPER_ADMIN, SITE_MANAGER, USER. 마지막 슈퍼어드민은 내릴 수 없다. 바꾼 역할은 그 사용자의 다음 요청부터 적용된다.",
     )
     fun changeRole(
         @Parameter(description = "사용자 ID", example = "3") id: Long,
         body: ChangeRoleRequestBody,
+    ): UserResponseBody
+
+    @Operation(
+        summary = "역할 목록 변경",
+        description = "가진 역할을 이 목록으로 바꾼다 (하나 이상). 마지막 슈퍼어드민은 내릴 수 없다. 바꾼 역할은 그 사용자의 다음 요청부터 적용된다.",
+    )
+    fun changeRoles(
+        @Parameter(description = "사용자 ID", example = "3") id: Long,
+        body: ChangeRolesRequestBody,
     ): UserResponseBody
 }

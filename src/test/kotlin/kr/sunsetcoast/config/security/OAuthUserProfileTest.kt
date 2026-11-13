@@ -4,6 +4,7 @@ import io.kotest.assertions.throwables.shouldThrow
 import io.kotest.core.spec.style.FunSpec
 import io.kotest.matchers.shouldBe
 import kr.sunsetcoast.domain.user.vo.AuthProvider
+import kr.sunsetcoast.domain.user.vo.Gender
 
 class OAuthUserProfileTest : FunSpec({
     test("네이버: response 안의 id, nickname, email") {
@@ -26,6 +27,37 @@ class OAuthUserProfileTest : FunSpec({
     test("카카오: 프로필 동의가 없으면 properties.nickname, 그것도 없으면 null") {
         OAuthUserProfile.of("kakao", mapOf("id" to 1L, "properties" to mapOf("nickname" to "  "))) shouldBe
             OAuthUserProfile(AuthProvider.KAKAO, "1", null, null)
+    }
+
+    test("네이버: 이름, 성별, 생일, 휴대전화") {
+        val attributes = mapOf(
+            "response" to mapOf(
+                "id" to "abc", "nickname" to "선셋", "name" to "홍길동", "email" to "a@example.com",
+                "gender" to "F", "birthday" to "03-15", "mobile" to "010-1234-5678",
+            ),
+        )
+        OAuthUserProfile.of("naver", attributes) shouldBe OAuthUserProfile(
+            AuthProvider.NAVER, "abc", "선셋", "a@example.com",
+            name = "홍길동", gender = Gender.FEMALE, birthday = "03-15", mobile = "010-1234-5678",
+        )
+    }
+
+    test("네이버: 성별 U(알 수 없음)는 저장하지 않는다") {
+        OAuthUserProfile.of("naver", mapOf("response" to mapOf("id" to "abc", "gender" to "U"))).gender shouldBe null
+    }
+
+    test("카카오: 생일 MMDD, 전화번호 +82 형식을 맞춘다") {
+        val attributes = mapOf(
+            "id" to 1L,
+            "kakao_account" to mapOf(
+                "name" to "홍길동", "gender" to "male", "birthday" to "0315", "phone_number" to "+82 10-1234-5678",
+            ),
+        )
+        val profile = OAuthUserProfile.of("kakao", attributes)
+        profile.name shouldBe "홍길동"
+        profile.gender shouldBe Gender.MALE
+        profile.birthday shouldBe "03-15"
+        profile.mobile shouldBe "010-1234-5678"
     }
 
     test("지원하지 않는 로그인") {

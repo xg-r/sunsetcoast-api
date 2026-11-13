@@ -24,8 +24,8 @@ class CurrentRoleFilter(
             if (user == null) {
                 SecurityContextHolder.clearContext()
                 request.getSession(false)?.invalidate()
-            } else if (user.role != principal.role) {
-                val current = LoginUser(principal.userId, user.role)
+            } else if (user.roleCodes != principal.roles) {
+                val current = LoginUser(principal.userId, user.roleCodes)
                 val registrationId = (authentication as? OAuth2AuthenticationToken)?.authorizedClientRegistrationId ?: "dev"
                 val replaced = SecurityContextHolder.createEmptyContext()
                 replaced.authentication = OAuth2AuthenticationToken(current, current.authorities, registrationId)

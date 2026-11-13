@@ -42,7 +42,7 @@ class AuthController(
         if (!devLoginEnabled) throw ResponseStatusException(HttpStatus.NOT_FOUND)
         val userRole = runCatching { UserRole.valueOf(role) }.getOrNull() ?: throw IllegalArgumentException("알 수 없는 역할입니다: $role")
         val user = userService.devUser(userRole)
-        val login = LoginUser(user.id!!, user.role)
+        val login = LoginUser(user.id!!, user.roleCodes)
         // 세션 고정 공격 방지: 로그인하면 세션 ID를 바꾼다
         request.getSession(false)?.let { request.changeSessionId() }
         val context = SecurityContextHolder.createEmptyContext()

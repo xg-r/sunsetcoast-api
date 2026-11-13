@@ -11,11 +11,13 @@ import org.springframework.security.oauth2.core.user.OAuth2User
  */
 data class LoginUser(
     val userId: Long,
-    val role: UserRole,
+    val roles: Set<UserRole>,
 ) : OAuth2User, java.io.Serializable {
+    fun hasRole(role: UserRole): Boolean = role in roles
+
     override fun getName(): String = userId.toString()
 
     override fun getAttributes(): Map<String, Any> = emptyMap()
 
-    override fun getAuthorities(): Collection<GrantedAuthority> = listOf(SimpleGrantedAuthority(role.authority))
+    override fun getAuthorities(): Collection<GrantedAuthority> = roles.map { SimpleGrantedAuthority(it.authority) }
 }

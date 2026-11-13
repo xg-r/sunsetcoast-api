@@ -8,5 +8,5 @@ object CurrentUser {
     fun get(): LoginUser? = SecurityContextHolder.getContext().authentication?.principal as? LoginUser
 
     /** 관리비는 SUPER_ADMIN만 본다 */
-    fun canSeeManagementFees(): Boolean = get()?.role == UserRole.SUPER_ADMIN
+    fun canSeeManagementFees(): Boolean = get()?.hasRole(UserRole.SUPER_ADMIN) == true
 }
