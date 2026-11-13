@@ -1,0 +1,117 @@
+package kr.sunsetcoast.controller.settlement
+
+import io.swagger.v3.oas.annotations.Operation
+import io.swagger.v3.oas.annotations.Parameter
+import io.swagger.v3.oas.annotations.media.ArraySchema
+import io.swagger.v3.oas.annotations.media.Content
+import io.swagger.v3.oas.annotations.media.Schema
+import io.swagger.v3.oas.annotations.responses.ApiResponse
+import io.swagger.v3.oas.annotations.tags.Tag
+import kr.sunsetcoast.common.response.ErrorResponse
+import kr.sunsetcoast.controller.settlement.dto.request.ResolveUnmappedRowRequestBody
+import kr.sunsetcoast.controller.settlement.dto.response.ImportBatchResponseBody
+import kr.sunsetcoast.controller.settlement.dto.response.SettlementFileCoverageResponseBody
+import kr.sunsetcoast.controller.settlement.dto.response.SettlementWeekCheckResponseBody
+import kr.sunsetcoast.controller.settlement.dto.request.SettlementWeekCheckRequestBody
+import kr.sunsetcoast.controller.settlement.dto.request.SettlementAccountRequestBody
+import kr.sunsetcoast.controller.settlement.dto.response.SettlementAccountResponseBody
+import kr.sunsetcoast.controller.settlement.dto.response.ResolveUnmappedRowResponseBody
+import kr.sunsetcoast.controller.settlement.dto.response.UnmappedRowResponseBody
+import kr.sunsetcoast.controller.settlement.dto.response.SettlementImportResponseBody
+import org.springframework.http.MediaType
+import org.springframework.http.ResponseEntity
+import org.springframework.web.multipart.MultipartFile
+
+@Tag(name = "Settlement", description = "OTA 정산 파일 업로드")
+interface SettlementControllerDocs {
+    @Operation(
+        summary = "정산 파일 업로드",
+        description = """
+떠나요(DDNAYO)·여기어때(YEOGI)·NOL 정산 파일(xlsx/xls/csv)을 여러 개 올린다. 플랫폼은 파일 내용으로 자동 판별한다.
+
+- 파일별로 따로 처리되며, 결과는 `files[]`에 업로드 순서대로 담긴다.
+- 이미 올린 파일이거나 지원하지 않는 형식이면 해당 파일만 `status=REJECTED`로 돌아오고 응답은 200이다.
+- `dryRun=true`면 저장하지 않고 건수만 계산한다 (`status=PREVIEW`, `importBatchId=null`).
+- `issues[]`에는 확인이 필요한 행(CHANGED/UNMAPPED/FAILED)만 담긴다.
+""",
+    )
+    @ApiResponse(responseCode = "200", description = "파일별 처리 결과")
+    @ApiResponse(
+        responseCode = "400",
+        description = "잘못된 요청",
+        content = [Content(schema = Schema(implementation = ErrorResponse::class))],
+    )
+    @ApiResponse(
+        responseCode = "500",
+        description = "서버 오류",
+        content = [Content(schema = Schema(implementation = ErrorResponse::class))],
+    )
+    fun importSettlements(
+        @Parameter(
+            description = "정산 파일 (여러 개 가능)",
+            content = [
+                Content(
+                    mediaType = MediaType.MULTIPART_FORM_DATA_VALUE,
+                    array = ArraySchema(schema = Schema(type = "string", format = "binary")),
+                ),
+            ],
+        )
+        files: List<MultipartFile>,
+        @Parameter(description = "true면 저장하지 않고 미리보기 결과만 돌려준다")
+        dryRun: Boolean,
+    ): ResponseEntity<SettlementImportResponseBody>
+
+    @Operation(summary = "업로드 내역", description = "최근 업로드한 파일부터 최대 200개.")
+    fun getImportBatches(): List<ImportBatchResponseBody>
+
+    @Operation(
+        summary = "정산 파일 현황",
+        description = "정산 파일(SETTLEMENT)마다 정산 계정·업소·정산일. 정산 계정과 정산일은 파일명에서 읽는다. " +
+            "화면은 계정별로 주마다 파일이 있는지 보여 주어 누락을 찾는다.",
+    )
+    fun getCoverage(): List<SettlementFileCoverageResponseBody>
+
+    @Operation(
+        summary = "정산 계정 목록",
+        description = "파일 현황에 나와야 하는 정산 계정. 파일을 한 번도 올리지 않은 계정도 시작 주부터 빠진 주로 보인다.",
+    )
+    fun getAccounts(): List<SettlementAccountResponseBody>
+
+    @Operation(summary = "정산 계정 등록", description = "계정 이름은 파일명에서 읽는 이름과 같아야 한다. 시작일은 그 주 월요일로 맞춘다.")
+    fun addAccount(body: SettlementAccountRequestBody): SettlementAccountResponseBody
+
+    @Operation(summary = "정산 계정 삭제", description = "등록만 지운다. 이미 올린 파일은 그대로 현황에 나온다.")
+    fun removeAccount(@Parameter(description = "정산 계정 ID") id: Long)
+
+    @Operation(summary = "확인 완료로 표시한 주 목록", description = "정산 파일이 없지만 관리자가 확인한 주 (예: 그 주 판매 없음).")
+    fun getWeekChecks(): List<SettlementWeekCheckResponseBody>
+
+    @Operation(
+        summary = "파일 없는 주를 확인 완료로 표시",
+        description = "정산 계정·주(월요일)마다 하나. 이미 표시돼 있으면 메모만 바꾼다. 화면에서는 업로드된 주처럼 취급한다.",
+    )
+    fun checkWeek(body: SettlementWeekCheckRequestBody): SettlementWeekCheckResponseBody
+
+    @Operation(summary = "확인 완료 표시 취소")
+    fun uncheckWeek(@Parameter(description = "확인 표시 ID") id: Long)
+
+    @Operation(
+        summary = "미매핑 행 목록",
+        description = "객실을 찾지 못해 저장되지 않은 정산 행. 다중 객실 예약의 잘린 객실명, 새 객실명 등.",
+    )
+    fun getUnmappedRows(): List<UnmappedRowResponseBody>
+
+    @Operation(
+        summary = "미매핑 행에 객실 지정",
+        description = """
+보존된 원본 행을 다시 파싱해서 지정한 객실로 저장한다. 다중 객실 예약은 객실을 파일 순서대로 여러 개 보내며, 금액은 객실 정가 비율로 나눈다.
+
+- `saveAlias=true`이고 객실이 하나면 파일의 객실명을 별칭으로 저장한다.
+- 처리 후 남은 미매핑 행을 다시 시도하므로, 같은 객실명이나 같은 예약번호의 행이 함께 처리될 수 있다 (`autoResolved`).
+""",
+    )
+    fun resolveUnmappedRow(
+        @Parameter(description = "원본 행 ID", example = "11") id: Long,
+        body: ResolveUnmappedRowRequestBody,
+    ): ResolveUnmappedRowResponseBody
+}

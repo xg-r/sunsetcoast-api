@@ -7,10 +7,11 @@ import jakarta.persistence.GeneratedValue
 import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
-import jakarta.persistence.OneToOne
+import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import kr.sunsetcoast.domain.businessowner.entity.BusinessOwnerEntity
+import kr.sunsetcoast.domain.property.entity.PropertyEntity
 
 @Entity
 @Table(
@@ -29,8 +30,14 @@ class RoomEntity(
     @Column(nullable = false, length = 30)
     val status: String,
 
-    @OneToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "business_owner_id")
+    /** 운영 단위(업소) */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "property_id", nullable = false)
+    val property: PropertyEntity,
+
+    /** 명의 단위(사업자) */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "business_owner_id", nullable = false)
     val businessOwnerEntity: BusinessOwnerEntity,
 
     @Id

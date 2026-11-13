@@ -10,8 +10,8 @@ import org.springframework.web.bind.annotation.RestController
 @RequestMapping("/api/cars")
 class CarController(
     val carService: CarService,
-) {
+) : CarControllerDocs {
     @GetMapping(version = "1.0")
-    fun getCars(): List<CarResponseBody> = carService.getCars()
+    override fun getCars(): List<CarResponseBody> = carService.getCars()
         .map { CarResponseBody.from(it) }
 }

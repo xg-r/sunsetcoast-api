@@ -6,4 +6,5 @@ import org.springframework.stereotype.Repository
 
 @Repository
 interface RoomRepository : JpaRepository<RoomEntity, Long> {
+    fun findByPropertyIdOrderById(propertyId: Long): List<RoomEntity>
 }
