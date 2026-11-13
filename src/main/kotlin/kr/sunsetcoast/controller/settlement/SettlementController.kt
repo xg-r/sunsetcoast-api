@@ -1,7 +1,9 @@
 package kr.sunsetcoast.controller.settlement
 
 import kr.sunsetcoast.controller.settlement.dto.request.ResolveUnmappedRowRequestBody
+import kr.sunsetcoast.controller.settlement.dto.request.SettlementAccountRequestBody
 import kr.sunsetcoast.controller.settlement.dto.request.SettlementWeekCheckRequestBody
+import kr.sunsetcoast.controller.settlement.dto.response.SettlementAccountResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementWeekCheckResponseBody
 import kr.sunsetcoast.domain.reservation.vo.OtaPlatform
 import org.springframework.web.bind.annotation.DeleteMapping
@@ -62,15 +64,29 @@ class SettlementController(
     override fun getCoverage(): List<SettlementFileCoverageResponseBody> =
         settlementCoverageService.findSettlementFiles().map { SettlementFileCoverageResponseBody.from(it) }
 
+    @GetMapping("/coverage/accounts", version = "1.0")
+    override fun getAccounts(): List<SettlementAccountResponseBody> =
+        settlementCoverageService.findAccounts().map { SettlementAccountResponseBody.from(it) }
+
+    @PostMapping("/coverage/accounts", version = "1.0")
+    override fun addAccount(@RequestBody body: SettlementAccountRequestBody): SettlementAccountResponseBody =
+        SettlementAccountResponseBody.from(
+            settlementCoverageService.addAccount(platformOf(body.platform), body.account, body.propertyId, body.startedOn),
+        )
+
+    @DeleteMapping("/coverage/accounts/{id}", version = "1.0")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    override fun removeAccount(@PathVariable id: Long) = settlementCoverageService.removeAccount(id)
+
     @GetMapping("/coverage/checks", version = "1.0")
     override fun getWeekChecks(): List<SettlementWeekCheckResponseBody> =
         settlementCoverageService.findWeekChecks().map { SettlementWeekCheckResponseBody.from(it) }
 
     @PostMapping("/coverage/checks", version = "1.0")
     override fun checkWeek(@RequestBody body: SettlementWeekCheckRequestBody): SettlementWeekCheckResponseBody {
-        val platform = runCatching { OtaPlatform.valueOf(body.platform) }.getOrNull()
-            ?: throw IllegalArgumentException("알 수 없는 플랫폼입니다: ${body.platform}")
-        return SettlementWeekCheckResponseBody.from(settlementCoverageService.checkWeek(platform, body.account, body.weekStart, body.note))
+        return SettlementWeekCheckResponseBody.from(
+            settlementCoverageService.checkWeek(platformOf(body.platform), body.account, body.weekStart, body.note),
+        )
     }
 
     @DeleteMapping("/coverage/checks/{id}", version = "1.0")
@@ -89,4 +105,7 @@ class SettlementController(
         val result = unmappedRowService.resolve(id, body.roomIds, body.saveAlias)
         return ResolveUnmappedRowResponseBody(result.row.result.name, result.row.message, result.autoResolved)
     }
+
+    private fun platformOf(value: String): OtaPlatform =
+        runCatching { OtaPlatform.valueOf(value) }.getOrNull() ?: throw IllegalArgumentException("알 수 없는 플랫폼입니다: $value")
 }

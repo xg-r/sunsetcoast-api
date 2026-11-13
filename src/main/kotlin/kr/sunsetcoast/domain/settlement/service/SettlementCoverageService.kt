@@ -3,7 +3,9 @@ package kr.sunsetcoast.domain.settlement.service
 import kr.sunsetcoast.domain.importbatch.entity.ImportBatchEntity
 import kr.sunsetcoast.domain.importbatch.repository.ImportBatchRepository
 import kr.sunsetcoast.domain.reservation.vo.OtaPlatform
+import kr.sunsetcoast.domain.settlement.entity.SettlementAccountEntity
 import kr.sunsetcoast.domain.settlement.entity.SettlementWeekCheckEntity
+import kr.sunsetcoast.domain.settlement.repository.SettlementAccountRepository
 import kr.sunsetcoast.domain.settlement.repository.SettlementWeekCheckRepository
 import kr.sunsetcoast.domain.settlement.repository.SettlementLineRepository
 import kr.sunsetcoast.domain.settlement.vo.SettlementFileName
@@ -11,6 +13,7 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.temporal.TemporalAdjusters
 
 /** 정산 계정별로 업로드한 정산 파일. 화면에서 주마다 빠진 파일을 찾는 데 쓴다 */
 @Service
@@ -19,6 +22,7 @@ class SettlementCoverageService(
     private val importBatchRepository: ImportBatchRepository,
     private val settlementLineRepository: SettlementLineRepository,
     private val settlementWeekCheckRepository: SettlementWeekCheckRepository,
+    private val settlementAccountRepository: SettlementAccountRepository,
 ) {
     data class CoverageFile(
         val batch: ImportBatchEntity,
@@ -78,5 +82,29 @@ class SettlementCoverageService(
     fun uncheckWeek(id: Long) {
         require(settlementWeekCheckRepository.existsById(id)) { "확인 표시가 없습니다: $id" }
         settlementWeekCheckRepository.deleteById(id)
+    }
+
+    fun findAccounts(): List<SettlementAccountEntity> = settlementAccountRepository.findAll()
+
+    /** 정산 계정 등록. 시작일은 그 주 월요일로 맞춘다 */
+    @Transactional
+    fun addAccount(source: OtaPlatform, account: String, propertyId: Long?, startedOn: LocalDate): SettlementAccountEntity {
+        val name = account.trim()
+        require(name.isNotEmpty()) { "정산 계정 이름이 비어 있습니다." }
+        require(!settlementAccountRepository.existsBySourceAndAccount(source, name)) { "이미 등록한 정산 계정입니다: $name" }
+        return settlementAccountRepository.save(
+            SettlementAccountEntity(
+                source = source,
+                account = name,
+                propertyId = propertyId,
+                startedOn = startedOn.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)),
+            ),
+        )
+    }
+
+    @Transactional
+    fun removeAccount(id: Long) {
+        require(settlementAccountRepository.existsById(id)) { "정산 계정이 없습니다: $id" }
+        settlementAccountRepository.deleteById(id)
     }
 }

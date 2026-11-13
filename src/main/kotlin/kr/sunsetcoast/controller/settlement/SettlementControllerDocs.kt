@@ -13,6 +13,8 @@ import kr.sunsetcoast.controller.settlement.dto.response.ImportBatchResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementFileCoverageResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementWeekCheckResponseBody
 import kr.sunsetcoast.controller.settlement.dto.request.SettlementWeekCheckRequestBody
+import kr.sunsetcoast.controller.settlement.dto.request.SettlementAccountRequestBody
+import kr.sunsetcoast.controller.settlement.dto.response.SettlementAccountResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.ResolveUnmappedRowResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.UnmappedRowResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementImportResponseBody
@@ -68,6 +70,18 @@ interface SettlementControllerDocs {
             "화면은 계정별로 주마다 파일이 있는지 보여 주어 누락을 찾는다.",
     )
     fun getCoverage(): List<SettlementFileCoverageResponseBody>
+
+    @Operation(
+        summary = "정산 계정 목록",
+        description = "파일 현황에 나와야 하는 정산 계정. 파일을 한 번도 올리지 않은 계정도 시작 주부터 빠진 주로 보인다.",
+    )
+    fun getAccounts(): List<SettlementAccountResponseBody>
+
+    @Operation(summary = "정산 계정 등록", description = "계정 이름은 파일명에서 읽는 이름과 같아야 한다. 시작일은 그 주 월요일로 맞춘다.")
+    fun addAccount(body: SettlementAccountRequestBody): SettlementAccountResponseBody
+
+    @Operation(summary = "정산 계정 삭제", description = "등록만 지운다. 이미 올린 파일은 그대로 현황에 나온다.")
+    fun removeAccount(@Parameter(description = "정산 계정 ID") id: Long)
 
     @Operation(summary = "확인 완료로 표시한 주 목록", description = "정산 파일이 없지만 관리자가 확인한 주 (예: 그 주 판매 없음).")
     fun getWeekChecks(): List<SettlementWeekCheckResponseBody>
