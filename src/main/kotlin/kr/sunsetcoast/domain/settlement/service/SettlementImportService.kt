@@ -7,32 +7,15 @@ import kr.sunsetcoast.domain.importbatch.repository.ImportBatchRepository
 import kr.sunsetcoast.domain.importbatch.repository.ImportRowRepository
 import kr.sunsetcoast.domain.importbatch.vo.FileKind
 import kr.sunsetcoast.domain.importbatch.vo.ImportRowResult
-import kr.sunsetcoast.domain.managementfee.service.ManagementFeeService
-import kr.sunsetcoast.domain.reservation.entity.ReservationEntity
-import kr.sunsetcoast.domain.reservation.repository.ReservationRepository
-import kr.sunsetcoast.domain.reservation.vo.AmountStatus
-import kr.sunsetcoast.domain.reservation.vo.OtaPlatform
-import kr.sunsetcoast.domain.reservation.vo.ReservationStatus
-import kr.sunsetcoast.domain.reservation.vo.SalesChannel
-import kr.sunsetcoast.domain.room.entity.RoomEntity
-import kr.sunsetcoast.domain.room.repository.RoomAliasRepository
-import kr.sunsetcoast.domain.settlement.entity.SettlementLineEntity
-import kr.sunsetcoast.domain.settlement.entity.SettlementLineRevisionEntity
 import kr.sunsetcoast.domain.settlement.parser.ParsedRow
-import kr.sunsetcoast.domain.settlement.parser.ParsedSettlementLine
 import kr.sunsetcoast.domain.settlement.parser.SettlementFileParsers
-import kr.sunsetcoast.domain.settlement.repository.SettlementLineRepository
-import kr.sunsetcoast.domain.settlement.repository.SettlementLineRevisionRepository
 import kr.sunsetcoast.domain.settlement.vo.RowIssue
 import kr.sunsetcoast.domain.settlement.vo.SettlementImportResult
-import kr.sunsetcoast.domain.settlement.vo.SettlementLineType
-import kr.sunsetcoast.domain.staycalendar.service.StayCalendarService
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import org.springframework.transaction.interceptor.TransactionAspectSupport
 import tools.jackson.databind.json.JsonMapper
 import java.security.MessageDigest
-import java.time.LocalDate
 
 private val logger = KotlinLogging.logger {}
 
@@ -41,22 +24,17 @@ private val logger = KotlinLogging.logger {}
  *
  * 중복 방지:
  * 1. 같은 파일(바이트 해시)은 거부
- * 2. 행 단위 자연키 (예약, 행 유형, 날짜, seq) 로 업서트 - 같은 값이면 DUPLICATE, 다르면 CHANGED(이전 값 보존)
+ * 2. 행 단위 자연키 (예약, 객실, 행 유형, 날짜, seq) 로 업서트 - 같은 값이면 DUPLICATE, 다르면 CHANGED(이전 값 보존)
  *
  * dryRun이면 같은 처리를 한 뒤 트랜잭션을 롤백해서 결과만 돌려준다 (미리보기).
  */
 @Service
 class SettlementImportService(
     private val parsers: SettlementFileParsers,
-    private val roomAliasRepository: RoomAliasRepository,
-    private val reservationRepository: ReservationRepository,
-    private val settlementLineRepository: SettlementLineRepository,
-    private val revisionRepository: SettlementLineRevisionRepository,
+    private val writer: SettlementLineWriter,
     private val importBatchRepository: ImportBatchRepository,
     private val importRowRepository: ImportRowRepository,
     private val jsonMapper: JsonMapper,
-    private val stayCalendarService: StayCalendarService,
-    private val managementFeeService: ManagementFeeService,
 ) {
     @Transactional(readOnly = true)
     fun findRecentBatches(): List<ImportBatchEntity> = importBatchRepository.findTop200ByOrderByIdDesc()
@@ -85,7 +63,7 @@ class SettlementImportService(
                 fileHash = fileHash,
             )
         )
-        val context = ImportContext(parsed.platform, batch.id!!)
+        val context = writer.newContext(parsed.platform, batch.id!!)
         val issues = mutableListOf<RowIssue>()
 
         for (row in parsed.rows) {
@@ -103,9 +81,7 @@ class SettlementImportService(
             if (result.needsAttention) issues += RowIssue(row.rowNo, result, message)
         }
 
-        context.touchedReservations.values.forEach { refreshStay(it, context.explicitStays[it.id]) }
-        stayCalendarService.refresh(context.touchedReservations.values)
-        managementFeeService.refresh(context.touchedReservations.values)
+        writer.finish(context)
 
         logger.info {
             "settlement import file=$fileName platform=${parsed.platform} dryRun=$dryRun total=${batch.totalRows} " +
@@ -119,140 +95,16 @@ class SettlementImportService(
         return SettlementImportResult.of(batch, dryRun, issues)
     }
 
-    private fun importRow(row: ParsedRow, context: ImportContext): Pair<ImportRowResult, String?> {
+    private fun importRow(row: ParsedRow, context: SettlementLineWriter.WriteContext): Pair<ImportRowResult, String?> {
         if (row.error != null) return ImportRowResult.FAILED to row.error
         if (row.lines.isEmpty()) return ImportRowResult.SKIPPED to null
 
-        var rowResult: ImportRowResult? = null
-        var message: String? = null
-
-        for (line in row.lines) {
-            val room = context.rooms.getOrPut(line.roomName) {
-                roomAliasRepository.findBySourceAndExternalName(context.platform, line.roomName)?.room
-            } ?: return ImportRowResult.UNMAPPED to "객실 매핑이 없습니다: ${line.roomName}"
-
-            val reservation = findOrCreateReservation(line, room, context.platform)
-            if (reservation.room.id != room.id) {
-                return ImportRowResult.FAILED to
-                    "예약 ${line.reservationNumber}의 객실이 기존(${reservation.room.name})과 다릅니다: ${room.name}"
-            }
-            reservation.fillMissing(line.salesChannelRaw, line.bookerName, line.reservedAt)
-            context.touchedReservations[reservation.id!!] = reservation
-            if (line.checkInDate != null) {
-                context.explicitStays[reservation.id] = line.checkInDate to line.nights
-            }
-
-            val (lineResult, lineMessage) = upsertLine(reservation, line, context)
-            rowResult = rowResult?.mergeWith(lineResult) ?: lineResult
-            message = lineMessage ?: message
-        }
-        return rowResult!! to message
-    }
-
-    private fun findOrCreateReservation(
-        line: ParsedSettlementLine,
-        room: RoomEntity,
-        platform: OtaPlatform,
-    ): ReservationEntity =
-        reservationRepository.findBySourceAndReservationNumber(platform, line.reservationNumber)
-            ?: reservationRepository.save(
-                ReservationEntity(
-                    source = platform,
-                    reservationNumber = line.reservationNumber,
-                    room = room,
-                    salesChannel = SalesChannel.fromRaw(line.salesChannelRaw),
-                    salesChannelRaw = line.salesChannelRaw,
-                    bookerName = line.bookerName,
-                    reservedAt = line.reservedAt,
-                    checkInDate = line.checkInDate,
-                    nights = line.nights,
-                    status = ReservationStatus.CONFIRMED,
-                    amountStatus = AmountStatus.CONFIRMED,
-                )
-            )
-
-    private fun upsertLine(
-        reservation: ReservationEntity,
-        line: ParsedSettlementLine,
-        context: ImportContext,
-    ): Pair<ImportRowResult, String?> {
-        // 같은 파일 안에서 같은 키가 반복되면(예: NOL 취소수수료 2건) 순번으로 구분한다.
-        // 같은 파일을 다시 올리면 같은 순번이 나오므로 중복으로 판정된다.
-        val key = LineKey(reservation.id!!, line.lineType, line.stayDate)
-        val seq = context.seqCounter.merge(key, 1, Int::plus)!! - 1
-
-        val existing = settlementLineRepository.findByReservationIdAndLineTypeAndStayDateAndSeq(
-            reservation.id, line.lineType, line.stayDate, seq,
-        )
-        if (existing == null) {
-            settlementLineRepository.save(
-                SettlementLineEntity.create(
-                    reservation = reservation,
-                    importBatchId = context.batchId,
-                    lineType = line.lineType,
-                    stayDate = line.stayDate,
-                    seq = seq,
-                    settledOn = line.settledOn,
-                    amounts = line.amounts,
-                    splitEstimated = line.splitEstimated,
-                )
-            )
-            return ImportRowResult.INSERTED to null
-        }
-
-        val previous = existing.amounts()
-        val current = line.amounts.normalized()
-        if (previous == current) return ImportRowResult.DUPLICATE to null
-
-        // TODO: 정산서 마감 기능이 생기면, 마감된 정산서에 포함된 행은 수정하지 않고 조정 행을 만든다.
-        revisionRepository.save(
-            SettlementLineRevisionEntity(
-                settlementLineId = existing.id!!,
-                importBatchId = context.batchId,
-                previousValues = jsonMapper.writeValueAsString(previous),
-            )
-        )
-        existing.update(current, line.settledOn, line.splitEstimated, context.batchId)
-        return ImportRowResult.CHANGED to
-            "${line.reservationNumber} ${line.stayDate} ${line.lineType} 금액 변경: 정산금액 ${previous.net} -> ${current.net}"
-    }
-
-    /**
-     * 정산 행으로 입실일/박수/상태/금액 합계를 다시 계산한다.
-     * 여기어때/NOL은 1박마다 행이 생기고 연박이 여러 주에 걸쳐 정산되므로, 예약번호로 묶인 행을 모두 본다.
-     * (예: 3박 예약 → 1박 행 3개 → 예약 1건, 박수 3, 매출 = 세 박 매출의 합)
-     */
-    private fun refreshStay(reservation: ReservationEntity, explicitStay: Pair<LocalDate, Int?>?) {
-        val lines = settlementLineRepository.findByReservationId(reservation.id!!)
-        val reversed = lines.filter { it.lineType == SettlementLineType.ROOM_NIGHT_REVERSAL }.map { it.stayDate }.toSet()
-        val stayDates = lines.filter { it.lineType == SettlementLineType.ROOM_NIGHT }.map { it.stayDate }.toSet() - reversed
-        val status = if (stayDates.isEmpty()) ReservationStatus.CANCELLED else ReservationStatus.CONFIRMED
-
-        reservation.applyTotals(
-            gross = lines.sumOf { it.grossAmount },
-            commission = lines.sumOf { it.commissionAmount },
-            net = lines.sumOf { it.netAmount },
-        )
-
-        when {
-            explicitStay != null -> reservation.applyStay(explicitStay.first, explicitStay.second, status)
-            stayDates.isNotEmpty() -> reservation.applyStay(stayDates.min(), stayDates.size, status)
-            else -> reservation.applyStay(null, null, status)
+        return when (val match = writer.matchRooms(row.lines.first(), context)) {
+            is SettlementLineWriter.RoomMatch.NotFound -> ImportRowResult.UNMAPPED to match.message
+            is SettlementLineWriter.RoomMatch.Found -> writer.write(row.lines, match.rooms, context)
         }
     }
 
     private fun sha256(bytes: ByteArray): String =
         MessageDigest.getInstance("SHA-256").digest(bytes).joinToString("") { "%02x".format(it) }
-
-    private data class LineKey(val reservationId: Long, val lineType: SettlementLineType, val stayDate: LocalDate)
-
-    private class ImportContext(
-        val platform: OtaPlatform,
-        val batchId: Long,
-    ) {
-        val rooms = HashMap<String, RoomEntity?>()
-        val seqCounter = HashMap<LineKey, Int>()
-        val touchedReservations = LinkedHashMap<Long, ReservationEntity>()
-        val explicitStays = HashMap<Long, Pair<LocalDate, Int?>>()
-    }
 }

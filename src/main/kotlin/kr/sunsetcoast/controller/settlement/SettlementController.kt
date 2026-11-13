@@ -1,12 +1,18 @@
 package kr.sunsetcoast.controller.settlement
 
+import kr.sunsetcoast.controller.settlement.dto.request.ResolveUnmappedRowRequestBody
 import kr.sunsetcoast.controller.settlement.dto.response.ImportBatchResponseBody
+import kr.sunsetcoast.controller.settlement.dto.response.ResolveUnmappedRowResponseBody
+import kr.sunsetcoast.controller.settlement.dto.response.UnmappedRowResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementImportResponseBody
 import kr.sunsetcoast.domain.settlement.service.SettlementImportService
+import kr.sunsetcoast.domain.settlement.service.UnmappedRowService
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestBody
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RequestPart
@@ -17,6 +23,7 @@ import org.springframework.web.multipart.MultipartFile
 @RequestMapping("/settlements")
 class SettlementController(
     private val settlementImportService: SettlementImportService,
+    private val unmappedRowService: UnmappedRowService,
 ) : SettlementControllerDocs {
     /**
      * 정산 파일 업로드. 플랫폼은 파일 내용으로 자동 판별한다.
@@ -41,4 +48,17 @@ class SettlementController(
     @GetMapping("/import-batches", version = "1.0")
     override fun getImportBatches(): List<ImportBatchResponseBody> =
         settlementImportService.findRecentBatches().map { ImportBatchResponseBody.from(it) }
+
+    @GetMapping("/unmapped-rows", version = "1.0")
+    override fun getUnmappedRows(): List<UnmappedRowResponseBody> =
+        unmappedRowService.findPending().map { UnmappedRowResponseBody.from(it) }
+
+    @PostMapping("/unmapped-rows/{id}/resolve", version = "1.0")
+    override fun resolveUnmappedRow(
+        @PathVariable id: Long,
+        @RequestBody body: ResolveUnmappedRowRequestBody,
+    ): ResolveUnmappedRowResponseBody {
+        val result = unmappedRowService.resolve(id, body.roomIds, body.saveAlias)
+        return ResolveUnmappedRowResponseBody(result.row.result.name, result.row.message, result.autoResolved)
+    }
 }

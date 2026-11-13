@@ -6,8 +6,9 @@ import org.springframework.data.jpa.repository.JpaRepository
 import java.time.LocalDate
 
 interface SettlementLineRepository : JpaRepository<SettlementLineEntity, Long> {
-    fun findByReservationIdAndLineTypeAndStayDateAndSeq(
+    fun findByReservationIdAndRoomIdAndLineTypeAndStayDateAndSeq(
         reservationId: Long,
+        roomId: Long,
         lineType: SettlementLineType,
         stayDate: LocalDate,
         seq: Int,

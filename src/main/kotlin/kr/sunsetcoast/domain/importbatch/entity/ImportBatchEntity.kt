@@ -69,4 +69,11 @@ class ImportBatchEntity(
             ImportRowResult.FAILED -> failedRows++
         }
     }
+
+    /** 미매핑 행을 나중에 처리했을 때 건수를 옮긴다 */
+    fun moveUnmapped(to: ImportRowResult) {
+        unmappedRows--
+        totalRows--
+        count(to)
+    }
 }

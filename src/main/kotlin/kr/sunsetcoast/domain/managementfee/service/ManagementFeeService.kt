@@ -8,6 +8,7 @@ import kr.sunsetcoast.domain.managementfee.vo.FeeStay
 import kr.sunsetcoast.domain.managementfee.vo.ManagementFeeRules
 import kr.sunsetcoast.domain.reservation.entity.ReservationEntity
 import kr.sunsetcoast.domain.reservation.repository.ReservationRepository
+import kr.sunsetcoast.domain.reservation.repository.ReservationRoomRepository
 import kr.sunsetcoast.domain.reservation.vo.ReservationStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -25,6 +26,7 @@ class ManagementFeeService(
     private val reservationRepository: ReservationRepository,
     private val managementFeeRepository: ManagementFeeRepository,
     private val managementFeeRateRepository: ManagementFeeRateRepository,
+    private val reservationRoomRepository: ReservationRoomRepository,
 ) {
     /** 바뀐 예약의 관리비를 다시 계산한다. (정산 파일 업로드 후 호출) */
     @Transactional
@@ -56,35 +58,40 @@ class ManagementFeeService(
 
     private fun recalculate(reservations: Collection<ReservationEntity>) {
         if (reservations.isEmpty()) return
-        val rates = managementFeeRateRepository.findByRoomIdIn(reservations.map { it.room.id!! }.toSet())
+        val ids = reservations.map { it.id!! }
+        // 다중 객실 예약은 객실마다 관리비를 준다
+        val roomsByReservation = reservationRoomRepository.findByReservationIds(ids).groupBy({ it.reservation.id!! }, { it.room })
+        val rates = managementFeeRateRepository
+            .findByRoomIdIn(reservations.flatMap { r -> roomsByReservation[r.id].orEmpty().map { it.id!! } + r.room.id!! }.toSet())
             .groupBy { it.roomId }
-        val existing = managementFeeRepository.findByReservationIdIn(reservations.map { it.id!! })
+        val existing = managementFeeRepository.findByReservationIdIn(ids)
             .associateBy { it.reservation.id!! to it.room.id!! }
-        // 다중 객실 예약이 들어오면 (예약, 객실)마다 FeeStay를 만든다.
         reservations.forEach { reservation ->
-            val stay = reservation.toFeeStay()
-            val decision = ManagementFeeRules.decide(stay) { roomId, checkIn ->
-                rates[roomId]?.singleOrNull { it.appliesTo(checkIn) }?.amount
-            }
-            val fee = existing[stay.reservationId to stay.roomId]
-            if (fee != null) {
-                fee.apply(decision)
-            } else {
-                managementFeeRepository.save(
-                    ManagementFeeEntity(
-                        reservation = reservation,
-                        room = reservation.room,
-                        basis = decision.basis,
-                        calculatedAmount = decision.amount,
+            roomsByReservation[reservation.id].orEmpty().ifEmpty { listOf(reservation.room) }.forEach { room ->
+                val stay = reservation.toFeeStay(room.id!!)
+                val decision = ManagementFeeRules.decide(stay) { roomId, checkIn ->
+                    rates[roomId]?.singleOrNull { it.appliesTo(checkIn) }?.amount
+                }
+                val fee = existing[stay.reservationId to stay.roomId]
+                if (fee != null) {
+                    fee.apply(decision)
+                } else {
+                    managementFeeRepository.save(
+                        ManagementFeeEntity(
+                            reservation = reservation,
+                            room = room,
+                            basis = decision.basis,
+                            calculatedAmount = decision.amount,
+                        )
                     )
-                )
+                }
             }
         }
     }
 
-    private fun ReservationEntity.toFeeStay() = FeeStay(
+    private fun ReservationEntity.toFeeStay(roomId: Long) = FeeStay(
         reservationId = id!!,
-        roomId = room.id!!,
+        roomId = roomId,
         cancelled = status == ReservationStatus.CANCELLED,
         checkInDate = checkInDate,
         nights = nights,

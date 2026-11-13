@@ -102,6 +102,8 @@ class StayCalendarService(
         val peakVotes = HashMap<LocalDate, Int>()
         val offpeakVotes = HashMap<LocalDate, Int>()
         stays.forEach { (reservation, stay) ->
+            // 다중 객실 예약은 객실별 금액이 정가 비율로 나눈 추정값이라 판단에 쓰지 않는다
+            if (stay.multiRoom) return@forEach
             val price = prices[reservation.room.id] ?: return@forEach
             SeasonMatcher.votes(price, stay.nights, stay.splitEstimated, weekendPolicy)
                 .filterKeys { it in dates }
@@ -140,7 +142,7 @@ class StayCalendarService(
         val nights = roomNights.groupBy { it.stayDate }
             .map { (night, ls) -> NightAmount(night, ls.sumOf { it.grossAmount + it.partnerDiscount + it.platformDiscount }) }
             .sortedBy { it.night }
-        return Stay(nights, splitEstimated = roomNights.any { it.splitEstimated })
+        return Stay(nights, splitEstimated = roomNights.any { it.splitEstimated }, multiRoom = lines.map { it.room.id }.toSet().size > 1)
     }
 
     private fun SettlementLineEntity.isNightLine() =
@@ -148,7 +150,7 @@ class StayCalendarService(
 
     private fun ReservationEntity.propertyId(): Long = room.property.id!!
 
-    private data class Stay(val nights: List<NightAmount>, val splitEstimated: Boolean)
+    private data class Stay(val nights: List<NightAmount>, val splitEstimated: Boolean, val multiRoom: Boolean)
 
     companion object {
         /** 한 예약의 최대 박수 가정 (한달살기 포함). 날짜에 걸친 예약을 찾을 때 입실일 검색 범위로 쓴다. */

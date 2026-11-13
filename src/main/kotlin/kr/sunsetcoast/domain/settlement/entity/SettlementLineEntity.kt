@@ -13,6 +13,7 @@ import jakarta.persistence.ManyToOne
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import kr.sunsetcoast.domain.reservation.entity.ReservationEntity
+import kr.sunsetcoast.domain.room.entity.RoomEntity
 import kr.sunsetcoast.domain.settlement.vo.SettlementAmounts
 import kr.sunsetcoast.domain.settlement.vo.SettlementLineType
 import java.math.BigDecimal
@@ -24,8 +25,8 @@ import java.time.LocalDateTime
     name = "settlement_lines",
     uniqueConstraints = [
         UniqueConstraint(
-            name = "uq_settlement_lines_key",
-            columnNames = ["reservation_id", "line_type", "stay_date", "seq"],
+            name = "uq_settlement_lines_room_key",
+            columnNames = ["reservation_id", "room_id", "line_type", "stay_date", "seq"],
         ),
     ]
 )
@@ -33,6 +34,11 @@ class SettlementLineEntity(
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "reservation_id", nullable = false)
     val reservation: ReservationEntity,
+
+    /** 다중 객실 예약은 객실마다 행이 따로 있다 */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "room_id", nullable = false)
+    val room: RoomEntity,
 
     /** 마지막으로 이 행을 저장/갱신한 업로드 */
     @Column(name = "import_batch_id", nullable = false)
@@ -115,6 +121,7 @@ class SettlementLineEntity(
     companion object {
         fun create(
             reservation: ReservationEntity,
+            room: RoomEntity,
             importBatchId: Long,
             lineType: SettlementLineType,
             stayDate: LocalDate,
@@ -126,6 +133,7 @@ class SettlementLineEntity(
             val normalized = amounts.normalized()
             return SettlementLineEntity(
                 reservation = reservation,
+                room = room,
                 importBatchId = importBatchId,
                 lineType = lineType,
                 stayDate = stayDate,

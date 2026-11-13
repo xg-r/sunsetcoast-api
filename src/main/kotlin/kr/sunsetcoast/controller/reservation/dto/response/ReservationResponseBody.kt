@@ -3,6 +3,7 @@ package kr.sunsetcoast.controller.reservation.dto.response
 import io.swagger.v3.oas.annotations.media.Schema
 import kr.sunsetcoast.domain.reservation.entity.ReservationEntity
 import kr.sunsetcoast.domain.reservation.vo.ReservationSummary
+import kr.sunsetcoast.domain.room.entity.RoomEntity
 import java.math.BigDecimal
 import java.time.LocalDate
 
@@ -18,9 +19,12 @@ data class ReservationResponseBody(
     val salesChannel: String,
     @field:Schema(description = "파일에 적힌 채널 원문", nullable = true, example = "네이버")
     val salesChannelRaw: String?,
+    @field:Schema(description = "대표 객실 ID (다중 객실 예약은 첫 번째 객실)")
     val roomId: Long,
-    @field:Schema(description = "객실 코드", example = "RESORT_305")
+    @field:Schema(description = "대표 객실 코드", example = "RESORT_305")
     val roomName: String,
+    @field:Schema(description = "예약의 모든 객실 (다중 객실 예약은 2개 이상)")
+    val rooms: List<RoomRef>,
     @field:Schema(description = "예약자 (플랫폼에 따라 마스킹)", nullable = true, example = "이*얀")
     val bookerName: String?,
     @field:Schema(description = "예약 일시", nullable = true, example = "2026-07-15T17:00:36")
@@ -46,10 +50,13 @@ data class ReservationResponseBody(
     @field:Schema(description = "현장 관리비 (객실 합계, 수정 금액 반영). 계산 전이면 null", nullable = true, example = "30000")
     val managementFee: BigDecimal?,
 ) {
-    companion object {
-        fun from(summary: ReservationSummary) = of(summary.reservation, summary.baseDate, summary.managementFee)
+    @Schema(name = "ReservationRoom", description = "예약 객실")
+    data class RoomRef(val id: Long, val name: String)
 
-        fun of(r: ReservationEntity, baseDate: LocalDate?, managementFee: BigDecimal?) = ReservationResponseBody(
+    companion object {
+        fun from(summary: ReservationSummary) = of(summary.reservation, summary.rooms, summary.baseDate, summary.managementFee)
+
+        fun of(r: ReservationEntity, rooms: List<RoomEntity>, baseDate: LocalDate?, managementFee: BigDecimal?) = ReservationResponseBody(
             id = r.id!!,
             source = r.source.name,
             reservationNumber = r.reservationNumber,
@@ -57,6 +64,7 @@ data class ReservationResponseBody(
             salesChannelRaw = r.salesChannelRaw,
             roomId = r.room.id!!,
             roomName = r.room.name,
+            rooms = rooms.map { RoomRef(it.id!!, it.name) },
             bookerName = r.bookerName,
             reservedAt = r.reservedAt?.withNano(0)?.toString(),
             checkInDate = r.checkInDate?.toString(),

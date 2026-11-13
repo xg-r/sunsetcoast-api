@@ -8,7 +8,10 @@ import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
 import kr.sunsetcoast.common.response.ErrorResponse
+import kr.sunsetcoast.controller.settlement.dto.request.ResolveUnmappedRowRequestBody
 import kr.sunsetcoast.controller.settlement.dto.response.ImportBatchResponseBody
+import kr.sunsetcoast.controller.settlement.dto.response.ResolveUnmappedRowResponseBody
+import kr.sunsetcoast.controller.settlement.dto.response.UnmappedRowResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementImportResponseBody
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -55,4 +58,24 @@ interface SettlementControllerDocs {
 
     @Operation(summary = "업로드 내역", description = "최근 업로드한 파일부터 최대 200개.")
     fun getImportBatches(): List<ImportBatchResponseBody>
+
+    @Operation(
+        summary = "미매핑 행 목록",
+        description = "객실을 찾지 못해 저장되지 않은 정산 행. 다중 객실 예약의 잘린 객실명, 새 객실명 등.",
+    )
+    fun getUnmappedRows(): List<UnmappedRowResponseBody>
+
+    @Operation(
+        summary = "미매핑 행에 객실 지정",
+        description = """
+보존된 원본 행을 다시 파싱해서 지정한 객실로 저장한다. 다중 객실 예약은 객실을 파일 순서대로 여러 개 보내며, 금액은 객실 정가 비율로 나눈다.
+
+- `saveAlias=true`이고 객실이 하나면 파일의 객실명을 별칭으로 저장한다.
+- 처리 후 남은 미매핑 행을 다시 시도하므로, 같은 객실명이나 같은 예약번호의 행이 함께 처리될 수 있다 (`autoResolved`).
+""",
+    )
+    fun resolveUnmappedRow(
+        @Parameter(description = "원본 행 ID", example = "11") id: Long,
+        body: ResolveUnmappedRowRequestBody,
+    ): ResolveUnmappedRowResponseBody
 }

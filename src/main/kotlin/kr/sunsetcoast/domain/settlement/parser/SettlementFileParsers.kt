@@ -1,5 +1,7 @@
 package kr.sunsetcoast.domain.settlement.parser
 
+import kr.sunsetcoast.domain.reservation.vo.OtaPlatform
+import kr.sunsetcoast.domain.settlement.parser.sheet.SheetRow
 import kr.sunsetcoast.domain.settlement.parser.sheet.WorkbookReader
 import org.springframework.stereotype.Component
 
@@ -31,6 +33,15 @@ class SettlementFileParsers(
             return ParsedSettlementFile(parser.platform, rows)
         }
         throw IllegalArgumentException("지원하는 정산 파일 형식이 아닙니다. (떠나요/여기어때/NOL 정산 파일인지 확인해 주세요)")
+    }
+
+    /**
+     * 보존해 둔 원본 행(개인정보 컬럼 제외)을 다시 파싱한다. 미매핑 행을 나중에 처리할 때 쓴다.
+     * @throws IllegalArgumentException 형식 오류
+     */
+    fun parseRow(platform: OtaPlatform, rowNo: Int, payload: Map<String, String>): List<ParsedSettlementLine> {
+        val parser = parsers.single { it.platform == platform }
+        return parser.parse(SheetRow(rowNo, payload)).orEmpty()
     }
 
     companion object {

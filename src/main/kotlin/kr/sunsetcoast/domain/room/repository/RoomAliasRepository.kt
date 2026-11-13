@@ -6,4 +6,6 @@ import org.springframework.data.jpa.repository.JpaRepository
 
 interface RoomAliasRepository : JpaRepository<RoomAliasEntity, Long> {
     fun findBySourceAndExternalName(source: OtaPlatform, externalName: String): RoomAliasEntity?
+
+    fun findBySource(source: OtaPlatform): List<RoomAliasEntity>
 }

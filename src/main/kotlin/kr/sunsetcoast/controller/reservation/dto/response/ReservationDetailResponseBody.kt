@@ -21,6 +21,8 @@ data class ReservationDetailResponseBody(
             allowableValues = ["ROOM_NIGHT", "CANCELLATION_FEE", "ROOM_NIGHT_REVERSAL"],
         )
         val lineType: String,
+        @field:Schema(description = "객실 코드 (다중 객실 예약은 객실마다 행이 따로 있다)", example = "수애기")
+        val roomName: String,
         @field:Schema(description = "숙박일 (취소수수료는 매출인식일)", example = "2026-08-03")
         val stayDate: String,
         @field:Schema(description = "정산(지급) 예정일", nullable = true, example = "2026-08-12")
@@ -36,7 +38,7 @@ data class ReservationDetailResponseBody(
         @field:Schema(description = "기타 비용 (NOL 부스팅 이용료 등)")
         val otherFee: BigDecimal,
         val netAmount: BigDecimal,
-        @field:Schema(description = "떠나요 연박 금액을 박수로 나눈 추정값인지")
+        @field:Schema(description = "떠나요 연박을 박수로, 다중 객실을 정가 비율로 나눈 추정값인지")
         val splitEstimated: Boolean,
         @field:Schema(description = "이 행을 마지막으로 반영한 업로드 파일", nullable = true)
         val fileName: String?,
@@ -46,6 +48,7 @@ data class ReservationDetailResponseBody(
                 Line(
                     id = it.id!!,
                     lineType = it.lineType.name,
+                    roomName = it.room.name,
                     stayDate = it.stayDate.toString(),
                     settledOn = it.settledOn?.toString(),
                     grossAmount = it.grossAmount,
@@ -67,7 +70,7 @@ data class ReservationDetailResponseBody(
             val fee = detail.fees.takeIf { it.isNotEmpty() }?.fold(BigDecimal.ZERO) { sum, f -> sum + f.amount }
             val baseDate = detail.reservation.checkInDate ?: detail.lines.minOfOrNull { it.line.stayDate }
             return ReservationDetailResponseBody(
-                reservation = ReservationResponseBody.of(detail.reservation, baseDate, fee),
+                reservation = ReservationResponseBody.of(detail.reservation, detail.rooms, baseDate, fee),
                 lines = detail.lines.map { Line.from(it) },
                 managementFees = detail.fees.map { ManagementFeeResponseBody.from(it) },
             )
