@@ -1,7 +1,7 @@
 -- 현장 관리비 (SETTLE-02)
 --
 -- 현장 사장님에게 예약의 객실마다 1회 지급한다. 박수와 무관하다.
--- 같은 예약자가 같은 객실을 이어서 따로 예약하면(앞 예약 퇴실일 = 뒤 예약 입실일) 뒤 예약은 0원.
+-- 연박은 예약번호로만 판단한다 (예약번호가 다르면 이어서 묵어도 따로 지급).
 -- 취소 예약은 0원. 관리자가 예약별로 금액을 고칠 수 있다 (원래 금액은 calculated_amount에 남는다).
 
 -- 객실별 관리비 단가. 입실일 기준으로 적용 기간이 맞는 단가를 쓴다.
@@ -36,11 +36,9 @@ CREATE TABLE management_fees
     id                           BIGINT AUTO_INCREMENT PRIMARY KEY,
     reservation_id               BIGINT         NOT NULL,
     room_id                      BIGINT         NOT NULL,
-    -- CHARGED: 지급, CANCELLED: 취소 예약, CONSECUTIVE: 이어진 예약의 뒤쪽, NO_STAY: 투숙한 밤 없음, NO_RATE: 단가 없음
+    -- CHARGED: 지급, CANCELLED: 취소 예약, NO_STAY: 투숙한 밤 없음, NO_RATE: 단가 없음
     basis                        VARCHAR(20)    NOT NULL,
     calculated_amount            DECIMAL(15, 2) NOT NULL,
-    -- CONSECUTIVE일 때 앞 예약
-    consecutive_of_reservation_id BIGINT,
     -- 관리자 수정. NULL이면 calculated_amount를 쓴다. 재계산이 덮어쓰지 않는다.
     override_amount              DECIMAL(15, 2),
     override_reason              VARCHAR(255),

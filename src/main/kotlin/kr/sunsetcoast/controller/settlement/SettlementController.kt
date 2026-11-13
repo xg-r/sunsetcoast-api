@@ -1,9 +1,11 @@
 package kr.sunsetcoast.controller.settlement
 
+import kr.sunsetcoast.controller.settlement.dto.response.ImportBatchResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementImportResponseBody
 import kr.sunsetcoast.domain.settlement.service.SettlementImportService
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -35,4 +37,8 @@ class SettlementController(
         }
         return ResponseEntity.ok(SettlementImportResponseBody.from(dryRun, results))
     }
+
+    @GetMapping("/import-batches", version = "1.0")
+    override fun getImportBatches(): List<ImportBatchResponseBody> =
+        settlementImportService.findRecentBatches().map { ImportBatchResponseBody.from(it) }
 }

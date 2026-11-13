@@ -8,6 +8,7 @@ import io.swagger.v3.oas.annotations.media.Schema
 import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
 import kr.sunsetcoast.common.response.ErrorResponse
+import kr.sunsetcoast.controller.settlement.dto.response.ImportBatchResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementImportResponseBody
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -51,4 +52,7 @@ interface SettlementControllerDocs {
         @Parameter(description = "true면 저장하지 않고 미리보기 결과만 돌려준다")
         dryRun: Boolean,
     ): ResponseEntity<SettlementImportResponseBody>
+
+    @Operation(summary = "업로드 내역", description = "최근 업로드한 파일부터 최대 200개.")
+    fun getImportBatches(): List<ImportBatchResponseBody>
 }

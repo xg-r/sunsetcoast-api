@@ -13,8 +13,7 @@ import java.time.YearMonth
 interface ManagementFeeControllerDocs {
     @Operation(
         summary = "월별 관리비 조회",
-        description = "입실일이 그 달에 속한 예약의 관리비. 예약의 객실마다 1회(박수 무관), 취소는 0원, " +
-            "같은 예약자가 같은 객실을 이어서 예약하면 뒤 예약은 0원(CONSECUTIVE).",
+        description = "입실일이 그 달에 속한 예약의 관리비. 예약번호의 객실마다 1회(박수 무관), 취소는 0원.",
     )
     fun getMonthly(
         @Parameter(description = "업소 ID", example = "1") propertyId: Long,

@@ -46,9 +46,6 @@ class ManagementFeeEntity(
     @Column(name = "calculated_amount", nullable = false, precision = 15, scale = 2)
     var calculatedAmount: BigDecimal,
 
-    @Column(name = "consecutive_of_reservation_id")
-    var consecutiveOfReservationId: Long? = null,
-
     @Column(name = "override_amount", precision = 15, scale = 2)
     var overrideAmount: BigDecimal? = null,
 
@@ -72,13 +69,9 @@ class ManagementFeeEntity(
     val amount: BigDecimal get() = overrideAmount ?: calculatedAmount
 
     fun apply(decision: FeeDecision) {
-        if (basis == decision.basis &&
-            calculatedAmount.compareTo(decision.amount) == 0 &&
-            consecutiveOfReservationId == decision.consecutiveOfReservationId
-        ) return
+        if (basis == decision.basis && calculatedAmount.compareTo(decision.amount) == 0) return
         basis = decision.basis
         calculatedAmount = decision.amount
-        consecutiveOfReservationId = decision.consecutiveOfReservationId
         updatedAt = LocalDateTime.now()
     }
 

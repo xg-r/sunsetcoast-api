@@ -22,18 +22,6 @@ interface ReservationRepository : JpaRepository<ReservationEntity, Long> {
         @Param("to") to: LocalDate,
     ): List<ReservationEntity>
 
-    @Query(
-        """
-        select r from ReservationEntity r join fetch r.room room
-        where room.id in :roomIds and r.checkInDate between :from and :to
-        """
-    )
-    fun findByRoomsAndCheckInBetween(
-        @Param("roomIds") roomIds: Collection<Long>,
-        @Param("from") from: LocalDate,
-        @Param("to") to: LocalDate,
-    ): List<ReservationEntity>
-
     @Query("select r from ReservationEntity r join fetch r.room")
     fun findAllWithRoom(): List<ReservationEntity>
 }

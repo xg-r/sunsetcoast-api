@@ -58,6 +58,9 @@ class SettlementImportService(
     private val stayCalendarService: StayCalendarService,
     private val managementFeeService: ManagementFeeService,
 ) {
+    @Transactional(readOnly = true)
+    fun findRecentBatches(): List<ImportBatchEntity> = importBatchRepository.findTop200ByOrderByIdDesc()
+
     @Transactional
     fun import(fileName: String, bytes: ByteArray, dryRun: Boolean): SettlementImportResult {
         val fileHash = sha256(bytes)

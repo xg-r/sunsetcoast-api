@@ -5,4 +5,6 @@ import org.springframework.data.jpa.repository.JpaRepository
 
 interface ImportBatchRepository : JpaRepository<ImportBatchEntity, Long> {
     fun findByFileHash(fileHash: String): ImportBatchEntity?
+
+    fun findTop200ByOrderByIdDesc(): List<ImportBatchEntity>
 }

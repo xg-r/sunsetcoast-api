@@ -27,13 +27,11 @@ data class ManagementFeeResponseBody(
     @field:Schema(description = "예약 상태", example = "CONFIRMED")
     val status: String,
     @field:Schema(
-        description = "CHARGED: 지급, CANCELLED: 취소, CONSECUTIVE: 이어진 예약(앞 예약에서 지급), NO_STAY: 투숙한 밤 없음, NO_RATE: 단가 없음",
-        allowableValues = ["CHARGED", "CANCELLED", "CONSECUTIVE", "NO_STAY", "NO_RATE"],
+        description = "CHARGED: 지급, CANCELLED: 취소, NO_STAY: 투숙한 밤 없음, NO_RATE: 단가 없음",
+        allowableValues = ["CHARGED", "CANCELLED", "NO_STAY", "NO_RATE"],
         example = "CHARGED",
     )
     val basis: String,
-    @field:Schema(description = "CONSECUTIVE일 때 앞 예약 ID", nullable = true, example = "655")
-    val consecutiveOfReservationId: Long?,
     @field:Schema(description = "자동 계산 금액", example = "30000")
     val calculatedAmount: BigDecimal,
     @field:Schema(description = "관리자가 고친 금액", nullable = true, example = "null")
@@ -56,7 +54,6 @@ data class ManagementFeeResponseBody(
             nights = entity.reservation.nights,
             status = entity.reservation.status.name,
             basis = entity.basis.name,
-            consecutiveOfReservationId = entity.consecutiveOfReservationId,
             calculatedAmount = entity.calculatedAmount,
             overrideAmount = entity.overrideAmount,
             overrideReason = entity.overrideReason,

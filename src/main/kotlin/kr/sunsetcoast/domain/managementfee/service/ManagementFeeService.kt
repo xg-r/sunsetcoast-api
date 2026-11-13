@@ -12,7 +12,6 @@ import kr.sunsetcoast.domain.reservation.vo.ReservationStatus
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
-import java.time.LocalDate
 import java.time.YearMonth
 
 private val logger = KotlinLogging.logger {}
@@ -27,25 +26,9 @@ class ManagementFeeService(
     private val managementFeeRepository: ManagementFeeRepository,
     private val managementFeeRateRepository: ManagementFeeRateRepository,
 ) {
-    /**
-     * 바뀐 예약과, 이어진 예약 판단이 달라질 수 있는 같은 객실의 앞뒤 예약을 다시 계산한다.
-     * (앞 예약이 취소되면 뒤 예약이 다시 지급 대상이 된다)
-     */
+    /** 바뀐 예약의 관리비를 다시 계산한다. (정산 파일 업로드 후 호출) */
     @Transactional
-    fun refresh(reservations: Collection<ReservationEntity>) {
-        if (reservations.isEmpty()) return
-        val checkIns = reservations.mapNotNull { it.checkInDate }
-        val neighbors = if (checkIns.isEmpty()) {
-            emptyList()
-        } else {
-            reservationRepository.findByRoomsAndCheckInBetween(
-                reservations.map { it.room.id!! }.toSet(),
-                checkIns.min().minusDays(MAX_NIGHTS),
-                checkIns.max().plusDays(MAX_NIGHTS),
-            )
-        }
-        recalculate((reservations + neighbors).distinctBy { it.id })
-    }
+    fun refresh(reservations: Collection<ReservationEntity>) = recalculate(reservations)
 
     /** 전체 다시 계산. 단가를 고친 뒤 실행한다. 관리자가 고친 금액은 유지된다. */
     @Transactional
@@ -75,27 +58,24 @@ class ManagementFeeService(
         if (reservations.isEmpty()) return
         val rates = managementFeeRateRepository.findByRoomIdIn(reservations.map { it.room.id!! }.toSet())
             .groupBy { it.roomId }
-        // 다중 객실 예약이 들어오면 (예약, 객실)마다 FeeStay를 만든다.
-        val stays = reservations.associateBy { it.toFeeStay() }
-        val decisions = ManagementFeeRules.decide(stays.keys) { roomId, checkIn ->
-            rates[roomId]?.singleOrNull { it.appliesTo(checkIn) }?.amount
-        }
-
         val existing = managementFeeRepository.findByReservationIdIn(reservations.map { it.id!! })
             .associateBy { it.reservation.id!! to it.room.id!! }
-        decisions.forEach { (stay, decision) ->
+        // 다중 객실 예약이 들어오면 (예약, 객실)마다 FeeStay를 만든다.
+        reservations.forEach { reservation ->
+            val stay = reservation.toFeeStay()
+            val decision = ManagementFeeRules.decide(stay) { roomId, checkIn ->
+                rates[roomId]?.singleOrNull { it.appliesTo(checkIn) }?.amount
+            }
             val fee = existing[stay.reservationId to stay.roomId]
             if (fee != null) {
                 fee.apply(decision)
             } else {
-                val reservation = stays.getValue(stay)
                 managementFeeRepository.save(
                     ManagementFeeEntity(
                         reservation = reservation,
                         room = reservation.room,
                         basis = decision.basis,
                         calculatedAmount = decision.amount,
-                        consecutiveOfReservationId = decision.consecutiveOfReservationId,
                     )
                 )
             }
@@ -105,14 +85,8 @@ class ManagementFeeService(
     private fun ReservationEntity.toFeeStay() = FeeStay(
         reservationId = id!!,
         roomId = room.id!!,
-        bookerName = bookerName,
         cancelled = status == ReservationStatus.CANCELLED,
         checkInDate = checkInDate,
         nights = nights,
     )
-
-    companion object {
-        /** 한 예약의 최대 박수 가정 (한달살기 포함). 이어진 예약을 찾을 때 입실일 검색 범위로 쓴다. */
-        private const val MAX_NIGHTS = 90L
-    }
 }
