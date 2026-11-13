@@ -41,10 +41,11 @@ class ManagementFeeService(
         return reservations.size
     }
 
+    /** 입실 월의 관리비. 업소나 사업자(명의 객실, 여러 업소에 걸칠 수 있음)로 좁힌다. */
     @Transactional(readOnly = true)
-    fun findMonthly(propertyId: Long, month: YearMonth): List<ManagementFeeEntity> =
+    fun findMonthly(propertyId: Long?, businessOwnerId: Long?, month: YearMonth): List<ManagementFeeEntity> =
         managementFeeRepository
-            .findByPropertyAndCheckInBetween(propertyId, month.atDay(1), month.atEndOfMonth())
+            .findByCheckInBetween(propertyId, businessOwnerId, month.atDay(1), month.atEndOfMonth())
             .sortedWith(compareBy({ it.reservation.checkInDate }, { it.room.id }, { it.reservation.id }))
 
     /** 관리자가 금액을 고친다. amount가 null이면 수정을 취소하고 자동 계산값으로 돌아간다. */

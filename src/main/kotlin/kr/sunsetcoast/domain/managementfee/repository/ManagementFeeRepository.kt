@@ -14,11 +14,14 @@ interface ManagementFeeRepository : JpaRepository<ManagementFeeEntity, Long> {
         select f from ManagementFeeEntity f
         join fetch f.reservation r
         join fetch f.room room
-        where room.property.id = :propertyId and r.checkInDate between :from and :to
+        where (:propertyId is null or room.property.id = :propertyId)
+          and (:businessOwnerId is null or room.businessOwnerEntity.id = :businessOwnerId)
+          and r.checkInDate between :from and :to
         """
     )
-    fun findByPropertyAndCheckInBetween(
-        @Param("propertyId") propertyId: Long,
+    fun findByCheckInBetween(
+        @Param("propertyId") propertyId: Long?,
+        @Param("businessOwnerId") businessOwnerId: Long?,
         @Param("from") from: LocalDate,
         @Param("to") to: LocalDate,
     ): List<ManagementFeeEntity>

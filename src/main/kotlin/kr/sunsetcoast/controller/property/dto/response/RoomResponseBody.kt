@@ -11,8 +11,18 @@ data class RoomResponseBody(
     val name: String,
     @field:Schema(description = "객실 유형", example = "AIR_STREAM")
     val type: String,
+    @field:Schema(description = "업소 ID", example = "1")
+    val propertyId: Long,
+    @field:Schema(description = "명의 사업자 ID", example = "1")
+    val businessOwnerId: Long,
 ) {
     companion object {
-        fun from(entity: RoomEntity) = RoomResponseBody(id = entity.id!!, name = entity.name, type = entity.type)
+        fun from(entity: RoomEntity) = RoomResponseBody(
+            id = entity.id!!,
+            name = entity.name,
+            type = entity.type,
+            propertyId = entity.property.id!!,
+            businessOwnerId = entity.businessOwnerEntity.id!!,
+        )
     }
 }

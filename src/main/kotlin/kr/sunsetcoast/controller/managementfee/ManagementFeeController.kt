@@ -23,10 +23,16 @@ class ManagementFeeController(
 ) : ManagementFeeControllerDocs {
     @GetMapping(version = "1.0")
     override fun getMonthly(
-        @RequestParam propertyId: Long,
+        @RequestParam(required = false) propertyId: Long?,
+        @RequestParam(required = false) businessOwnerId: Long?,
         @RequestParam @DateTimeFormat(pattern = "yyyy-MM") month: YearMonth,
     ): MonthlyManagementFeeResponseBody =
-        MonthlyManagementFeeResponseBody.from(propertyId, month, managementFeeService.findMonthly(propertyId, month))
+        MonthlyManagementFeeResponseBody.from(
+            propertyId,
+            businessOwnerId,
+            month,
+            managementFeeService.findMonthly(propertyId, businessOwnerId, month),
+        )
 
     @PutMapping("/{id}", version = "1.0")
     override fun override(
