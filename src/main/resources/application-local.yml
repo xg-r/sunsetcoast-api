@@ -4,6 +4,9 @@ server:
     max-part-count: 200
 
 spring:
+  config:
+    # OAuth 키 등 비밀값은 프로젝트 루트의 local-secrets.yml 에 둔다 (gitignore, 없어도 실행됨)
+    import: optional:file:./local-secrets.yml
   servlet:
     multipart:
       max-file-size: 10MB
@@ -23,15 +26,33 @@ spring:
     properties:
       hibernate:
         format_sql: true
+  security:
+    oauth2:
+      client:
+        registration:
+          # 로컬에서 실제 로그인을 해 보려면 환경 변수로 키를 넣는다. 없으면 개발용 로그인만 쓸 수 있다
+          naver:
+            client-id: ${NAVER_CLIENT_ID:local-unset}
+            client-secret: ${NAVER_CLIENT_SECRET:local-unset}
+          kakao:
+            client-id: ${KAKAO_CLIENT_ID:local-unset}
+            client-secret: ${KAKAO_CLIENT_SECRET:local-unset}
   flyway:
     enabled: true
     locations: classpath:db/migration
 
 springdoc:
   api-docs:
+    enabled: true
     path: /v3/api-docs
   swagger-ui:
+    enabled: true
     path: /swagger-ui.html
     operations-sorter: alpha
     tags-sorter: alpha
   default-produces-media-type: application/json
+
+sunsetcoast:
+  auth:
+    # 역할별 개발용 로그인 (POST /auth/dev-login?role=SITE_MANAGER). 로컬에서만 켠다
+    dev-login-enabled: true

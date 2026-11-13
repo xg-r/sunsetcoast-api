@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.servlet.resource.NoResourceFoundException
 
 private val logger = KotlinLogging.logger {}
 
@@ -58,6 +59,15 @@ class GlobalExceptionHandler {
                     message = e.message ?: "잘못된 상태입니다.",
                 )
             )
+    }
+
+    /** 없는 경로. 500으로 감싸지 않고 404로 돌려준다 */
+    @ExceptionHandler(NoResourceFoundException::class)
+    fun handleNoResourceFound(e: NoResourceFoundException): ResponseEntity<ErrorResponse> {
+        logger.debug { "[NoResourceFound] ${e.message}" }
+        return ResponseEntity
+            .status(HttpStatus.NOT_FOUND)
+            .body(ErrorResponse(exception = "NoResourceFoundException", message = "없는 주소입니다."))
     }
 
     @ExceptionHandler(Exception::class)
