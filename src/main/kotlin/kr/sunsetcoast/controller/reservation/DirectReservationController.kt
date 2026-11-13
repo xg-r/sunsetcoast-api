@@ -1,5 +1,6 @@
 package kr.sunsetcoast.controller.reservation
 
+import kr.sunsetcoast.config.security.CurrentUser
 import kr.sunsetcoast.controller.reservation.dto.request.CancelDirectReservationRequestBody
 import kr.sunsetcoast.controller.reservation.dto.request.DirectReservationRequestBody
 import kr.sunsetcoast.controller.reservation.dto.response.DirectReservationQuoteResponseBody
@@ -39,19 +40,19 @@ class DirectReservationController(
     @ResponseStatus(HttpStatus.CREATED)
     override fun create(@RequestBody body: DirectReservationRequestBody): ReservationDetailResponseBody {
         val reservation = directReservationService.create(body.toCommand())
-        return ReservationDetailResponseBody.from(reservationQueryService.findDetail(reservation.id!!))
+        return ReservationDetailResponseBody.from(reservationQueryService.findDetail(reservation.id!!), CurrentUser.canSeeManagementFees())
     }
 
     @PutMapping("/{id}", version = "1.0")
     override fun update(@PathVariable id: Long, @RequestBody body: DirectReservationRequestBody): ReservationDetailResponseBody {
         directReservationService.update(id, body.toCommand())
-        return ReservationDetailResponseBody.from(reservationQueryService.findDetail(id))
+        return ReservationDetailResponseBody.from(reservationQueryService.findDetail(id), CurrentUser.canSeeManagementFees())
     }
 
     @PostMapping("/{id}/cancel", version = "1.0")
     override fun cancel(@PathVariable id: Long, @RequestBody body: CancelDirectReservationRequestBody): ReservationDetailResponseBody {
         directReservationService.cancel(id, body.cancellationFee, body.cancelledOn ?: LocalDate.now())
-        return ReservationDetailResponseBody.from(reservationQueryService.findDetail(id))
+        return ReservationDetailResponseBody.from(reservationQueryService.findDetail(id), CurrentUser.canSeeManagementFees())
     }
 
     @DeleteMapping("/{id}", version = "1.0")

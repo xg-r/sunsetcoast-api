@@ -11,6 +11,7 @@ data class ReservationDetailResponseBody(
     val reservation: ReservationResponseBody,
     @field:Schema(description = "정산 행 (1박, 취소수수료, 입실 후 취소)")
     val lines: List<Line>,
+    @field:Schema(description = "객실별 관리비. 슈퍼어드민만 받는다 (그 외 빈 목록)")
     val managementFees: List<ManagementFeeResponseBody>,
 ) {
     @Schema(name = "ReservationSettlementLine", description = "정산 행")
@@ -66,13 +67,15 @@ data class ReservationDetailResponseBody(
     }
 
     companion object {
-        fun from(detail: ReservationDetail): ReservationDetailResponseBody {
-            val fee = detail.fees.takeIf { it.isNotEmpty() }?.fold(BigDecimal.ZERO) { sum, f -> sum + f.amount }
+        /** @param includeManagementFees 관리비는 슈퍼어드민만 본다 */
+        fun from(detail: ReservationDetail, includeManagementFees: Boolean): ReservationDetailResponseBody {
+            val fees = if (includeManagementFees) detail.fees else emptyList()
+            val fee = fees.takeIf { it.isNotEmpty() }?.fold(BigDecimal.ZERO) { sum, f -> sum + f.amount }
             val baseDate = detail.reservation.checkInDate ?: detail.lines.minOfOrNull { it.line.stayDate }
             return ReservationDetailResponseBody(
                 reservation = ReservationResponseBody.of(detail.reservation, detail.rooms, baseDate, fee),
                 lines = detail.lines.map { Line.from(it) },
-                managementFees = detail.fees.map { ManagementFeeResponseBody.from(it) },
+                managementFees = fees.map { ManagementFeeResponseBody.from(it) },
             )
         }
     }

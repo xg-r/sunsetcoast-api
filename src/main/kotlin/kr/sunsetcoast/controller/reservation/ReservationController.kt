@@ -1,5 +1,6 @@
 package kr.sunsetcoast.controller.reservation
 
+import kr.sunsetcoast.config.security.CurrentUser
 import kr.sunsetcoast.controller.reservation.dto.response.ReservationDetailResponseBody
 import kr.sunsetcoast.controller.reservation.dto.response.ReservationResponseBody
 import kr.sunsetcoast.domain.reservation.service.ReservationQueryService
@@ -22,9 +23,9 @@ class ReservationController(
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) from: LocalDate,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) to: LocalDate,
     ): List<ReservationResponseBody> =
-        reservationQueryService.findByPeriod(propertyId, from, to).map { ReservationResponseBody.from(it) }
+        reservationQueryService.findByPeriod(propertyId, from, to).map { ReservationResponseBody.from(it, CurrentUser.canSeeManagementFees()) }
 
     @GetMapping("/{id}", version = "1.0")
     override fun getReservation(@PathVariable id: Long): ReservationDetailResponseBody =
-        ReservationDetailResponseBody.from(reservationQueryService.findDetail(id))
+        ReservationDetailResponseBody.from(reservationQueryService.findDetail(id), CurrentUser.canSeeManagementFees())
 }

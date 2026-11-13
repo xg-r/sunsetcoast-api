@@ -47,7 +47,7 @@ data class ReservationResponseBody(
     val commissionAmount: BigDecimal,
     @field:Schema(description = "정산금액(입금액) 합계", example = "212500")
     val netAmount: BigDecimal,
-    @field:Schema(description = "현장 관리비 (객실 합계, 수정 금액 반영). 계산 전이면 null", nullable = true, example = "30000")
+    @field:Schema(description = "현장 관리비 (객실 합계, 수정 금액 반영). 계산 전이거나 슈퍼어드민이 아니면 null", nullable = true, example = "30000")
     val managementFee: BigDecimal?,
     @field:Schema(description = "US: 우리 입금, OWNER: 외부 소유주 계좌로 직접 입금 (매출 제외)", allowableValues = ["US", "OWNER"])
     val paymentReceiver: String,
@@ -64,7 +64,9 @@ data class ReservationResponseBody(
     data class RoomRef(val id: Long, val name: String)
 
     companion object {
-        fun from(summary: ReservationSummary) = of(summary.reservation, summary.rooms, summary.baseDate, summary.managementFee)
+        /** @param includeManagementFee 관리비는 슈퍼어드민만 본다 */
+        fun from(summary: ReservationSummary, includeManagementFee: Boolean) =
+            of(summary.reservation, summary.rooms, summary.baseDate, summary.managementFee.takeIf { includeManagementFee })
 
         fun of(r: ReservationEntity, rooms: List<RoomEntity>, baseDate: LocalDate?, managementFee: BigDecimal?) = ReservationResponseBody(
             id = r.id!!,
