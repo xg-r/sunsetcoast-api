@@ -57,7 +57,7 @@ class ReservationQueryService(
         val lines = settlementLineRepository.findByReservationId(id)
             .onEach { it.room.name }
             .sortedWith(compareBy({ it.stayDate }, { order[it.room.id] ?: 0 }, { it.lineType }, { it.seq }))
-        val files = importBatchRepository.findAllById(lines.map { it.importBatchId }.toSet()).associate { it.id to it.fileName }
+        val files = importBatchRepository.findAllById(lines.mapNotNull { it.importBatchId }.toSet()).associate { it.id to it.fileName }
         val fees = managementFeeRepository.findByReservationIdIn(listOf(id)).onEach { it.room.name }
         return ReservationDetail(reservation, rooms, lines.map { SettlementLineWithFile(it, files[it.importBatchId]) }, fees)
     }

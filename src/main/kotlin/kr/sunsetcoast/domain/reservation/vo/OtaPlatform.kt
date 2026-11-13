@@ -5,5 +5,8 @@ package kr.sunsetcoast.domain.reservation.vo
  */
 enum class OtaPlatform {
     DDNAYO, YEOGI, NOL,
+
+    /** 관리자가 직접 입력한 예약 (전화·현장) */
+    DIRECT,
     ;
 }

@@ -14,6 +14,7 @@ import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import kr.sunsetcoast.domain.reservation.vo.AmountStatus
 import kr.sunsetcoast.domain.reservation.vo.OtaPlatform
+import kr.sunsetcoast.domain.reservation.vo.PaymentMethod
 import kr.sunsetcoast.domain.reservation.vo.PaymentReceiver
 import kr.sunsetcoast.domain.reservation.vo.ReservationStatus
 import kr.sunsetcoast.domain.reservation.vo.SalesChannel
@@ -39,7 +40,7 @@ class ReservationEntity(
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "room_id", nullable = false)
-    val room: RoomEntity,
+    var room: RoomEntity,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "sales_channel", nullable = false, length = 20)
@@ -92,6 +93,22 @@ class ReservationEntity(
     @Enumerated(EnumType.STRING)
     @Column(name = "amount_status", nullable = false, length = 20)
     var amountStatus: AmountStatus,
+
+    /** 인원 (직접 예약) */
+    @Column(name = "guest_count")
+    var guestCount: Int? = null,
+
+    /** 결제수단 (직접 예약) */
+    @Enumerated(EnumType.STRING)
+    @Column(name = "payment_method", length = 20)
+    var paymentMethod: PaymentMethod? = null,
+
+    /** 입금 여부 (직접 예약) */
+    @Column(name = "paid")
+    var paid: Boolean? = null,
+
+    @Column(name = "memo", length = 1000)
+    var memo: String? = null,
 
     @Column(name = "created_at", nullable = false)
     val createdAt: LocalDateTime = LocalDateTime.now(),

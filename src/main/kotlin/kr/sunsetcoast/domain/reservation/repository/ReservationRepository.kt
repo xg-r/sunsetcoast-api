@@ -10,6 +10,8 @@ import java.time.LocalDate
 interface ReservationRepository : JpaRepository<ReservationEntity, Long> {
     fun findBySourceAndReservationNumber(source: OtaPlatform, reservationNumber: String): ReservationEntity?
 
+    fun findBySourceAndReservationNumberStartingWith(source: OtaPlatform, prefix: String): List<ReservationEntity>
+
     @Query(
         """
         select r from ReservationEntity r join fetch r.room room

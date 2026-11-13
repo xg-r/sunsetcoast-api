@@ -14,4 +14,18 @@ interface ReservationRoomRepository : JpaRepository<ReservationRoomEntity, Long>
         """
     )
     fun findByReservationIds(@Param("reservationIds") reservationIds: Collection<Long>): List<ReservationRoomEntity>
+
+    /** 객실의 투숙 예약 중 입실일이 기간 안인 것 (겹치는 예약 검사용) */
+    @Query(
+        """
+        select rr from ReservationRoomEntity rr join fetch rr.reservation r join fetch rr.room
+        where rr.room.id in :roomIds and r.status = kr.sunsetcoast.domain.reservation.vo.ReservationStatus.CONFIRMED
+          and r.checkInDate between :from and :to
+        """
+    )
+    fun findConfirmedByRoomsAndCheckInBetween(
+        @Param("roomIds") roomIds: Collection<Long>,
+        @Param("from") from: java.time.LocalDate,
+        @Param("to") to: java.time.LocalDate,
+    ): List<ReservationRoomEntity>
 }

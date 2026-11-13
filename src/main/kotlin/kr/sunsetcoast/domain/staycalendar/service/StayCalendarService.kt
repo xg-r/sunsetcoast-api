@@ -3,6 +3,7 @@ package kr.sunsetcoast.domain.staycalendar.service
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kr.sunsetcoast.domain.reservation.entity.ReservationEntity
 import kr.sunsetcoast.domain.reservation.repository.ReservationRepository
+import kr.sunsetcoast.domain.reservation.vo.OtaPlatform
 import kr.sunsetcoast.domain.settlement.entity.SettlementLineEntity
 import kr.sunsetcoast.domain.settlement.repository.SettlementLineRepository
 import kr.sunsetcoast.domain.settlement.vo.SettlementLineType
@@ -103,7 +104,8 @@ class StayCalendarService(
         val offpeakVotes = HashMap<LocalDate, Int>()
         stays.forEach { (reservation, stay) ->
             // 다중 객실 예약은 객실별 금액이 정가 비율로 나눈 추정값이라 판단에 쓰지 않는다
-            if (stay.multiRoom) return@forEach
+            // 직접 입력 예약은 관리자가 요금표를 보고 넣은 금액이라 판단 근거가 되지 않는다
+            if (stay.multiRoom || reservation.source == OtaPlatform.DIRECT) return@forEach
             val price = prices[reservation.room.id] ?: return@forEach
             SeasonMatcher.votes(price, stay.nights, stay.splitEstimated, weekendPolicy)
                 .filterKeys { it in dates }

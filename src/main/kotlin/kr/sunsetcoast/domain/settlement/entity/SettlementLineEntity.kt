@@ -41,8 +41,9 @@ class SettlementLineEntity(
     val room: RoomEntity,
 
     /** 마지막으로 이 행을 저장/갱신한 업로드 */
-    @Column(name = "import_batch_id", nullable = false)
-    var importBatchId: Long,
+    /** 직접 입력한 예약은 null */
+    @Column(name = "import_batch_id")
+    var importBatchId: Long?,
 
     @Enumerated(EnumType.STRING)
     @Column(name = "line_type", nullable = false, length = 30)
@@ -122,7 +123,7 @@ class SettlementLineEntity(
         fun create(
             reservation: ReservationEntity,
             room: RoomEntity,
-            importBatchId: Long,
+            importBatchId: Long?,
             lineType: SettlementLineType,
             stayDate: LocalDate,
             seq: Int,

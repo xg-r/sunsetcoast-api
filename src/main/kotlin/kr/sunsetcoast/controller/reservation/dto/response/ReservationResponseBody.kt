@@ -11,7 +11,7 @@ import java.time.LocalDate
 data class ReservationResponseBody(
     @field:Schema(description = "예약 ID", example = "656")
     val id: Long,
-    @field:Schema(description = "정산 플랫폼", allowableValues = ["DDNAYO", "YEOGI", "NOL"], example = "YEOGI")
+    @field:Schema(description = "정산 플랫폼 (DIRECT: 관리자가 직접 입력)", allowableValues = ["DDNAYO", "YEOGI", "NOL", "DIRECT"], example = "YEOGI")
     val source: String,
     @field:Schema(description = "플랫폼 예약번호", example = "26061517003670YE1")
     val reservationNumber: String,
@@ -49,6 +49,16 @@ data class ReservationResponseBody(
     val netAmount: BigDecimal,
     @field:Schema(description = "현장 관리비 (객실 합계, 수정 금액 반영). 계산 전이면 null", nullable = true, example = "30000")
     val managementFee: BigDecimal?,
+    @field:Schema(description = "US: 우리 입금, OWNER: 외부 소유주 계좌로 직접 입금 (매출 제외)", allowableValues = ["US", "OWNER"])
+    val paymentReceiver: String,
+    @field:Schema(description = "인원 (직접 예약)", nullable = true)
+    val guestCount: Int?,
+    @field:Schema(description = "결제수단 (직접 예약)", nullable = true, allowableValues = ["BANK_TRANSFER", "CARD", "CASH", "OTHER"])
+    val paymentMethod: String?,
+    @field:Schema(description = "입금 여부 (직접 예약)", nullable = true)
+    val paid: Boolean?,
+    @field:Schema(description = "메모", nullable = true)
+    val memo: String?,
 ) {
     @Schema(name = "ReservationRoom", description = "예약 객실")
     data class RoomRef(val id: Long, val name: String)
@@ -77,6 +87,11 @@ data class ReservationResponseBody(
             commissionAmount = r.commissionAmount,
             netAmount = r.netAmount,
             managementFee = managementFee,
+            paymentReceiver = r.paymentReceiver.name,
+            guestCount = r.guestCount,
+            paymentMethod = r.paymentMethod?.name,
+            paid = r.paid,
+            memo = r.memo,
         )
     }
 }
