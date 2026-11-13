@@ -10,6 +10,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import kr.sunsetcoast.common.response.ErrorResponse
 import kr.sunsetcoast.controller.settlement.dto.request.ResolveUnmappedRowRequestBody
 import kr.sunsetcoast.controller.settlement.dto.response.ImportBatchResponseBody
+import kr.sunsetcoast.controller.settlement.dto.response.SettlementFileCoverageResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.ResolveUnmappedRowResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.UnmappedRowResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementImportResponseBody
@@ -58,6 +59,13 @@ interface SettlementControllerDocs {
 
     @Operation(summary = "업로드 내역", description = "최근 업로드한 파일부터 최대 200개.")
     fun getImportBatches(): List<ImportBatchResponseBody>
+
+    @Operation(
+        summary = "정산 파일 현황",
+        description = "정산 파일(SETTLEMENT)마다 정산 계정·업소·정산일. 정산 계정과 정산일은 파일명에서 읽는다. " +
+            "화면은 계정별로 주마다 파일이 있는지 보여 주어 누락을 찾는다.",
+    )
+    fun getCoverage(): List<SettlementFileCoverageResponseBody>
 
     @Operation(
         summary = "미매핑 행 목록",
