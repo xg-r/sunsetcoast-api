@@ -7,6 +7,7 @@ import kr.sunsetcoast.domain.importbatch.repository.ImportBatchRepository
 import kr.sunsetcoast.domain.importbatch.repository.ImportRowRepository
 import kr.sunsetcoast.domain.importbatch.vo.FileKind
 import kr.sunsetcoast.domain.importbatch.vo.ImportRowResult
+import kr.sunsetcoast.domain.managementfee.service.ManagementFeeService
 import kr.sunsetcoast.domain.reservation.entity.ReservationEntity
 import kr.sunsetcoast.domain.reservation.repository.ReservationRepository
 import kr.sunsetcoast.domain.reservation.vo.AmountStatus
@@ -55,6 +56,7 @@ class SettlementImportService(
     private val importRowRepository: ImportRowRepository,
     private val jsonMapper: JsonMapper,
     private val stayCalendarService: StayCalendarService,
+    private val managementFeeService: ManagementFeeService,
 ) {
     @Transactional
     fun import(fileName: String, bytes: ByteArray, dryRun: Boolean): SettlementImportResult {
@@ -100,6 +102,7 @@ class SettlementImportService(
 
         context.touchedReservations.values.forEach { refreshStay(it, context.explicitStays[it.id]) }
         stayCalendarService.refresh(context.touchedReservations.values)
+        managementFeeService.refresh(context.touchedReservations.values)
 
         logger.info {
             "settlement import file=$fileName platform=${parsed.platform} dryRun=$dryRun total=${batch.totalRows} " +
