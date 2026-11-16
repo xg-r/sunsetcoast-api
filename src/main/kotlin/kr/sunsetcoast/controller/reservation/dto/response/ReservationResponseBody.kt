@@ -42,11 +42,11 @@ data class ReservationResponseBody(
     @field:Schema(description = "CONFIRMED: 투숙, CANCELLED: 취소", allowableValues = ["CONFIRMED", "CANCELLED"])
     val status: String,
     @field:Schema(description = "매출 합계", example = "250000")
-    val grossAmount: BigDecimal,
+    val grossAmount: BigDecimal?,
     @field:Schema(description = "수수료 합계", example = "37500")
-    val commissionAmount: BigDecimal,
+    val commissionAmount: BigDecimal?,
     @field:Schema(description = "정산금액(입금액) 합계", example = "212500")
-    val netAmount: BigDecimal,
+    val netAmount: BigDecimal?,
     @field:Schema(description = "현장 관리비 (객실 합계, 수정 금액 반영). 계산 전이거나 슈퍼어드민이 아니면 null", nullable = true, example = "30000")
     val managementFee: BigDecimal?,
     @field:Schema(description = "US: 우리 입금, OWNER: 외부 소유주 계좌로 직접 입금 (매출 제외)", allowableValues = ["US", "OWNER"])
@@ -64,11 +64,11 @@ data class ReservationResponseBody(
     data class RoomRef(val id: Long, val name: String)
 
     companion object {
-        /** @param includeManagementFee 관리비는 슈퍼어드민만 본다 */
-        fun from(summary: ReservationSummary, includeManagementFee: Boolean) =
-            of(summary.reservation, summary.rooms, summary.baseDate, summary.managementFee.takeIf { includeManagementFee })
+        /** @param includeAmounts 매출·정산금액·관리비는 슈퍼어드민만 본다 (아니면 null) */
+        fun from(summary: ReservationSummary, includeAmounts: Boolean) =
+            of(summary.reservation, summary.rooms, summary.baseDate, summary.managementFee.takeIf { includeAmounts }, includeAmounts)
 
-        fun of(r: ReservationEntity, rooms: List<RoomEntity>, baseDate: LocalDate?, managementFee: BigDecimal?) = ReservationResponseBody(
+        fun of(r: ReservationEntity, rooms: List<RoomEntity>, baseDate: LocalDate?, managementFee: BigDecimal?, includeAmounts: Boolean) = ReservationResponseBody(
             id = r.id!!,
             source = r.source.name,
             reservationNumber = r.reservationNumber,
@@ -85,9 +85,9 @@ data class ReservationResponseBody(
             weekend = r.weekend,
             peakSeason = r.peakSeason,
             status = r.status.name,
-            grossAmount = r.grossAmount,
-            commissionAmount = r.commissionAmount,
-            netAmount = r.netAmount,
+            grossAmount = r.grossAmount.takeIf { includeAmounts },
+            commissionAmount = r.commissionAmount.takeIf { includeAmounts },
+            netAmount = r.netAmount.takeIf { includeAmounts },
             managementFee = managementFee,
             paymentReceiver = r.paymentReceiver.name,
             guestCount = r.guestCount,

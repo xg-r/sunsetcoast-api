@@ -74,7 +74,7 @@ class ImportJobController(
         val user = CurrentUser.get()
         val canSeeAll = user?.hasRole(UserRole.SUPER_ADMIN) == true
         val jobs = if (ids.isNullOrEmpty()) jobService.recent(user?.userId, canSeeAll) else jobService.find(ids, user?.userId, canSeeAll)
-        return jobs.map { ImportJobResponseBody.from(it, jsonMapper) }
+        return jobs.map { ImportJobResponseBody.from(it, jsonMapper, CurrentUser.canSeeAmounts()) }
     }
 
     private fun enqueue(kind: ImportJobKind, files: List<MultipartFile>, businessOwnerId: Long? = null): ImportJobsCreatedResponseBody {
@@ -82,6 +82,6 @@ class ImportJobController(
         val created = jobService.create(kind, files.map { (it.originalFilename ?: "unknown") to it.bytes }, CurrentUser.get()?.userId, businessOwnerId)
         // create의 트랜잭션이 끝난 뒤에 넘겨야 작업자가 저장된 작업을 읽는다
         worker.submit(created.mapNotNull { it.job?.id })
-        return ImportJobsCreatedResponseBody.from(created, jsonMapper)
+        return ImportJobsCreatedResponseBody.from(created, jsonMapper, CurrentUser.canSeeAmounts())
     }
 }

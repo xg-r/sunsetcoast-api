@@ -1,5 +1,9 @@
 package kr.sunsetcoast.controller.settlement
 
+import kr.sunsetcoast.common.response.AmountText
+
+import kr.sunsetcoast.config.security.CurrentUser
+
 import kr.sunsetcoast.controller.settlement.dto.request.ResolveUnmappedRowRequestBody
 import kr.sunsetcoast.controller.settlement.dto.request.SettlementAccountRequestBody
 import kr.sunsetcoast.controller.settlement.dto.request.SettlementWeekCheckRequestBody
@@ -56,7 +60,7 @@ class SettlementController(
                 dryRun = dryRun,
             )
         }
-        return ResponseEntity.ok(SettlementImportResponseBody.from(dryRun, results))
+        return ResponseEntity.ok(SettlementImportResponseBody.from(dryRun, results, CurrentUser.canSeeAmounts()))
     }
 
     @GetMapping("/import-batches", version = "1.0")
@@ -102,7 +106,7 @@ class SettlementController(
 
     @GetMapping("/unmapped-rows", version = "1.0")
     override fun getUnmappedRows(): List<UnmappedRowResponseBody> =
-        unmappedRowService.findPending().map { UnmappedRowResponseBody.from(it) }
+        unmappedRowService.findPending().map { UnmappedRowResponseBody.from(it, CurrentUser.canSeeAmounts()) }
 
     @PostMapping("/unmapped-rows/{id}/resolve", version = "1.0")
     override fun resolveUnmappedRow(
@@ -110,7 +114,8 @@ class SettlementController(
         @RequestBody body: ResolveUnmappedRowRequestBody,
     ): ResolveUnmappedRowResponseBody {
         val result = unmappedRowService.resolve(id, body.roomIds, body.saveAlias)
-        return ResolveUnmappedRowResponseBody(result.row.result.name, result.row.message, result.autoResolved)
+        val message = if (CurrentUser.canSeeAmounts()) result.row.message else AmountText.redact(result.row.message)
+        return ResolveUnmappedRowResponseBody(result.row.result.name, message, result.autoResolved)
     }
 
     private fun platformOf(value: String): OtaPlatform =

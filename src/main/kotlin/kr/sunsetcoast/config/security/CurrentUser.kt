@@ -9,4 +9,10 @@ object CurrentUser {
 
     /** 관리비는 SUPER_ADMIN만 본다 */
     fun canSeeManagementFees(): Boolean = get()?.hasRole(UserRole.SUPER_ADMIN) == true
+
+    /**
+     * 매출·정산금액 등 돈은 SUPER_ADMIN만 본다. 현장관리자에게 가는 응답에서는 금액을 빼고(null),
+     * 금액이 들어간 안내 문구도 줄인다 ([AmountText.redact]).
+     */
+    fun canSeeAmounts(): Boolean = get()?.hasRole(UserRole.SUPER_ADMIN) == true
 }

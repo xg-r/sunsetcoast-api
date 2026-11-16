@@ -23,9 +23,9 @@ class ReservationController(
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) from: LocalDate,
         @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) to: LocalDate,
     ): List<ReservationResponseBody> =
-        reservationQueryService.findByPeriod(propertyId, from, to).map { ReservationResponseBody.from(it, CurrentUser.canSeeManagementFees()) }
+        reservationQueryService.findByPeriod(propertyId, from, to).map { ReservationResponseBody.from(it, CurrentUser.canSeeAmounts()) }
 
     @GetMapping("/{id}", version = "1.0")
     override fun getReservation(@PathVariable id: Long): ReservationDetailResponseBody =
-        ReservationDetailResponseBody.from(reservationQueryService.findDetail(id), CurrentUser.canSeeManagementFees())
+        ReservationDetailResponseBody.from(reservationQueryService.findDetail(id), CurrentUser.canSeeAmounts())
 }

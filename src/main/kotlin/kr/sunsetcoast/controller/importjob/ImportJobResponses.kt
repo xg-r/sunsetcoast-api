@@ -1,5 +1,6 @@
 package kr.sunsetcoast.controller.importjob
 
+import kr.sunsetcoast.common.response.AmountText
 import io.swagger.v3.oas.annotations.media.Schema
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementImportResponseBody
 import kr.sunsetcoast.domain.importjob.entity.ImportJobEntity
@@ -23,16 +24,17 @@ data class ImportJobResponseBody(
     val finishedAt: String?,
 ) {
     companion object {
-        fun from(job: ImportJobEntity, jsonMapper: JsonMapper): ImportJobResponseBody {
+        /** @param includeAmounts false면 안내 문구의 금액을 뺀다 (현장관리자) */
+        fun from(job: ImportJobEntity, jsonMapper: JsonMapper, includeAmounts: Boolean = true): ImportJobResponseBody {
             val json = job.resultJson
             return ImportJobResponseBody(
                 id = job.id!!,
                 kind = job.kind.name,
                 fileName = job.fileName,
                 status = job.status.name,
-                errorMessage = job.errorMessage,
+                errorMessage = if (includeAmounts) job.errorMessage else AmountText.redact(job.errorMessage),
                 settlement = if (json != null && job.kind == ImportJobKind.SETTLEMENT) {
-                    SettlementImportResponseBody.from(false, listOf(jsonMapper.readValue(json, SettlementImportResult::class.java))).files.first()
+                    SettlementImportResponseBody.from(false, listOf(jsonMapper.readValue(json, SettlementImportResult::class.java)), includeAmounts).files.first()
                 } else {
                     null
                 },
@@ -53,8 +55,8 @@ data class ImportJobsCreatedResponseBody(
     data class Rejected(val fileName: String, val message: String)
 
     companion object {
-        fun from(result: List<ImportJobService.Enqueued>, jsonMapper: JsonMapper) = ImportJobsCreatedResponseBody(
-            jobs = result.mapNotNull { it.job }.map { ImportJobResponseBody.from(it, jsonMapper) },
+        fun from(result: List<ImportJobService.Enqueued>, jsonMapper: JsonMapper, includeAmounts: Boolean = true) = ImportJobsCreatedResponseBody(
+            jobs = result.mapNotNull { it.job }.map { ImportJobResponseBody.from(it, jsonMapper, includeAmounts) },
             rejected = result.filter { it.job == null }.map { Rejected(it.fileName, it.rejectedReason.orEmpty()) },
         )
     }
