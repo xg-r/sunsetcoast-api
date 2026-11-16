@@ -57,6 +57,82 @@ class ManagementFeeService(
         return fee
     }
 
+    /**
+     * 관리자가 입금을 확인해 입금 완료로 표시하거나 취소한다. 여러 건을 한꺼번에 처리한다.
+     * 입금 완료로 표시할 때의 지급액을 남겨 두어, 그 뒤 금액이 바뀌면 화면에서 차액을 알 수 있다.
+     */
+    @Transactional
+    fun markPayments(feeIds: Collection<Long>, paid: Boolean, userId: Long?): List<ManagementFeeEntity> {
+        require(feeIds.isNotEmpty()) { "관리비를 선택해 주세요." }
+        val fees = managementFeeRepository.findAllById(feeIds.toSet())
+        val missing = feeIds.toSet() - fees.map { it.id!! }.toSet()
+        require(missing.isEmpty()) { "관리비를 찾을 수 없습니다: ${missing.joinToString()}" }
+        fees.forEach { fee ->
+            when {
+                paid && !fee.paid -> fee.markPaid(userId)
+                !paid && fee.paid -> fee.unmarkPaid()
+            }
+        }
+        logger.info { "management fee payments paid=$paid ids=${fees.map { it.id }} by=$userId" }
+        return fees
+    }
+
+    /** 관리자 확인 표시. verified=true면 지금 금액으로 확인(금액이 바뀐 건도 다시 확인), false면 취소 */
+    @Transactional
+    fun markVerified(feeIds: Collection<Long>, verified: Boolean, userId: Long?): List<ManagementFeeEntity> {
+        require(feeIds.isNotEmpty()) { "관리비를 선택해 주세요." }
+        val fees = managementFeeRepository.findAllById(feeIds.toSet())
+        val missing = feeIds.toSet() - fees.map { it.id!! }.toSet()
+        require(missing.isEmpty()) { "관리비를 찾을 수 없습니다: ${missing.joinToString()}" }
+        fees.forEach { if (verified) it.verify(userId) else it.unverify() }
+        return fees
+    }
+
+    enum class PaidBasis {
+        /** 관리비가 속한 달 (입실 월) */
+        FEE_MONTH,
+
+        /** 입금 완료로 표시한 달 (실제로 돈이 나간 달) */
+        PAID_MONTH,
+    }
+
+    data class PaidCell(val ownerId: Long, val month: YearMonth, val amount: BigDecimal, val count: Int)
+
+    data class PaidOwner(val id: Long, val name: String)
+
+    data class PaidSummary(
+        val from: YearMonth,
+        val to: YearMonth,
+        val basis: PaidBasis,
+        val months: List<YearMonth>,
+        val owners: List<PaidOwner>,
+        val cells: List<PaidCell>,
+    )
+
+    /**
+     * 입금 완료된 관리비를 사업자(객실 명의) × 월로 모은다. 금액은 입금 완료로 표시할 때의 지급액.
+     * 입금 완료가 아닌 관리비는 넣지 않는다.
+     */
+    @Transactional(readOnly = true)
+    fun paidSummary(from: YearMonth, to: YearMonth, basis: PaidBasis): PaidSummary {
+        require(!from.isAfter(to)) { "시작 월이 끝 월보다 늦습니다: $from ~ $to" }
+        require(java.time.temporal.ChronoUnit.MONTHS.between(from, to) < 36) { "한 번에 36개월까지 볼 수 있습니다." }
+        val fees = when (basis) {
+            PaidBasis.FEE_MONTH -> managementFeeRepository.findPaidByCheckInBetween(from.atDay(1), to.atEndOfMonth())
+            PaidBasis.PAID_MONTH -> managementFeeRepository.findPaidBetween(from.atDay(1).atStartOfDay(), to.atEndOfMonth().atTime(23, 59, 59))
+        }
+        fun monthOf(f: ManagementFeeEntity): YearMonth = when (basis) {
+            PaidBasis.FEE_MONTH -> YearMonth.from(f.reservation.checkInDate!!)
+            PaidBasis.PAID_MONTH -> YearMonth.from(f.paidAt!!)
+        }
+        val owners = fees.map { it.room.businessOwnerEntity }.distinctBy { it.id }.sortedBy { it.id }.map { PaidOwner(it.id!!, it.name) }
+        val cells = fees.groupBy { it.room.businessOwnerEntity.id!! to monthOf(it) }.map { (key, list) ->
+            PaidCell(key.first, key.second, list.sumOf { it.paidAmount ?: it.amount }, list.size)
+        }
+        val months = generateSequence(from) { it.plusMonths(1) }.takeWhile { !it.isAfter(to) }.toList()
+        return PaidSummary(from, to, basis, months, owners, cells)
+    }
+
     private fun recalculate(reservations: Collection<ReservationEntity>) {
         if (reservations.isEmpty()) return
         val ids = reservations.map { it.id!! }

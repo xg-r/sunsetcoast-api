@@ -10,6 +10,8 @@ data class DirectReservationQuoteResponseBody(
     val conflicts: List<ConflictBody>,
     @field:Schema(description = "외부 소유주 객실(Villa II·III)이 있어 소유주 계좌로 입금되는 예약")
     val ownerPaid: Boolean,
+    @field:Schema(description = "객실 ID → 관리비 기본값 (입실일의 단가, 없으면 null)")
+    val managementFeeDefaults: Map<Long, BigDecimal?>,
 ) {
     @Schema(name = "DirectReservationQuoteNight")
     data class Night(
@@ -28,6 +30,7 @@ data class DirectReservationQuoteResponseBody(
             nights = quote.nights.map { Night(it.date.toString(), it.weekend, it.peak, it.prices) },
             conflicts = quote.conflicts.map { ConflictBody.from(it) },
             ownerPaid = quote.ownerPaid,
+            managementFeeDefaults = quote.managementFeeDefaults,
         )
     }
 }

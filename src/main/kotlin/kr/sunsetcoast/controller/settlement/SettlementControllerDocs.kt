@@ -9,6 +9,7 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse
 import io.swagger.v3.oas.annotations.tags.Tag
 import kr.sunsetcoast.common.response.ErrorResponse
 import kr.sunsetcoast.controller.settlement.dto.request.ResolveUnmappedRowRequestBody
+import kr.sunsetcoast.controller.settlement.dto.response.ImportBatchDeleteResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.ImportBatchResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementFileCoverageResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementWeekCheckResponseBody
@@ -65,8 +66,28 @@ interface SettlementControllerDocs {
     fun getImportBatches(): List<ImportBatchResponseBody>
 
     @Operation(
+        summary = "업로드 삭제 (슈퍼어드민)",
+        description = """
+잘못 올린 파일을 지우고 그 파일이 DB에 남긴 것을 되돌린다.
+
+- 이 파일이 새로 만든 정산 행은 삭제, 금액을 바꾼 행은 바뀌기 전 값으로 되돌린다.
+- 정산 행이 하나도 남지 않은 예약은 예약·관리비(관리자가 고친 금액 포함)까지 삭제한다.
+- 남은 예약은 박수·금액 합계·성수기/주말·관리비를 다시 계산한다.
+- 업로드 기록도 지우므로 같은 파일을 다시 올릴 수 있다.
+""",
+    )
+    @ApiResponse(responseCode = "200", description = "삭제 결과")
+    @ApiResponse(
+        responseCode = "400",
+        description = "업로드 기록이 없음",
+        content = [Content(schema = Schema(implementation = ErrorResponse::class))],
+    )
+    fun deleteImportBatch(@Parameter(description = "업로드 ID", example = "28") id: Long): ImportBatchDeleteResponseBody
+
+    @Operation(
         summary = "정산 파일 현황",
-        description = "정산 파일(SETTLEMENT)마다 정산 계정·업소·정산일. 정산 계정과 정산일은 파일명에서 읽는다. " +
+        description = "정산 파일(SETTLEMENT)마다 정산 계정·업소·정산일. 정산 계정과 정산일은 파일명에서 읽는다 " +
+            "(떠나요에서 받은 그대로의 AdjustCalendar 파일은 사업자번호·이용일로 추정). " +
             "화면은 계정별로 주마다 파일이 있는지 보여 주어 누락을 찾는다.",
     )
     fun getCoverage(): List<SettlementFileCoverageResponseBody>

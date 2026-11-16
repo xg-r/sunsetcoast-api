@@ -5,6 +5,8 @@ import jakarta.servlet.http.HttpServletResponse
 import kr.sunsetcoast.config.security.CurrentUser
 import kr.sunsetcoast.config.security.LoginUser
 import kr.sunsetcoast.controller.auth.dto.response.MeResponseBody
+import kr.sunsetcoast.domain.loginevent.entity.LoginEventEntity
+import kr.sunsetcoast.domain.loginevent.service.LoginEventService
 import kr.sunsetcoast.domain.user.service.UserService
 import kr.sunsetcoast.domain.user.vo.UserRole
 import org.springframework.beans.factory.annotation.Value
@@ -24,6 +26,7 @@ import org.springframework.web.server.ResponseStatusException
 class AuthController(
     private val userService: UserService,
     private val securityContextRepository: SecurityContextRepository,
+    private val loginEventService: LoginEventService,
     @Value("\${sunsetcoast.auth.dev-login-enabled:false}") private val devLoginEnabled: Boolean,
 ) : AuthControllerDocs {
     @GetMapping("/me", version = "1.0")
@@ -49,6 +52,7 @@ class AuthController(
         context.authentication = OAuth2AuthenticationToken(login, login.authorities, "dev")
         SecurityContextHolder.setContext(context)
         securityContextRepository.saveContext(context, request, response)
+        loginEventService.record(LoginEventEntity.EventType.LOGIN_SUCCESS, request, userId = user.id)
         return MeResponseBody.from(user)
     }
 }

@@ -14,4 +14,10 @@ interface SettlementFileParser {
      * @throws IllegalArgumentException 형식 오류나 금액 검증 실패
      */
     fun parse(row: SheetRow): List<ParsedSettlementLine>?
+
+    /**
+     * 파일 전체를 받을 수 있는지. 받을 수 없으면 파일을 거부한다 (행을 하나도 저장하지 않음).
+     * @throws IllegalArgumentException 거부 사유
+     */
+    fun validateFile(rows: List<SheetRow>) {}
 }

@@ -10,7 +10,14 @@ import java.time.LocalDate
  *
  * 이름을 바꾼 파일은 읽지 못한다 (account·issuedOn null).
  */
-data class SettlementFileName(val account: String?, val issuedOn: LocalDate?) {
+data class SettlementFileName(
+    val account: String?,
+    val issuedOn: LocalDate?,
+    /** 파일명이 아닌 파일 내용으로 추정한 정산일 (떠나요 원본 파일명) */
+    val estimatedIssuedOn: LocalDate? = null,
+    /** 파일 내용으로 추정한 정산일 전부 (한 달 치를 한 번에 받은 떠나요 파일은 여러 개) */
+    val estimatedDates: List<LocalDate> = listOfNotNull(estimatedIssuedOn),
+) {
     companion object {
         private val DATED = Regex("""^정산내역_(.+?)_(\d{4})-(\d{2})-(\d{2})""")
         private val NOL = Regex("""^정산상세내역_[^_]+_(.+?)_?(\d{2})(\d{2})\.xlsx?$""", RegexOption.IGNORE_CASE)

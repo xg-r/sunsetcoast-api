@@ -5,6 +5,7 @@ import kr.sunsetcoast.domain.user.entity.UserEntity
 import kr.sunsetcoast.domain.user.repository.RoleRepository
 import kr.sunsetcoast.domain.user.repository.UserRepository
 import kr.sunsetcoast.domain.user.vo.AuthProvider
+import kr.sunsetcoast.domain.user.vo.EmailAlreadyRegisteredException
 import kr.sunsetcoast.domain.user.vo.Gender
 import kr.sunsetcoast.domain.user.vo.UserRole
 import org.springframework.beans.factory.annotation.Value
@@ -30,6 +31,10 @@ class UserService(
     /**
      * OAuth 로그인 성공. 처음이면 USER로 가입시키고, 회원 정보는 최신으로 맞춘다.
      * 플랫폼이 보내지 않은 값(동의 철회 등)은 기존 값을 지우지 않는다.
+     *
+     * 이메일은 계정 하나만 쓸 수 있다 (uq_users_email).
+     * - 처음 가입하는데 다른 플랫폼 계정이 같은 이메일로 가입돼 있으면 가입하지 않고 [EmailAlreadyRegisteredException]
+     * - 이미 가입한 계정의 이메일이 다른 계정과 겹치게 바뀌면 이메일만 바꾸지 않는다
      */
     @Transactional
     fun recordLogin(
@@ -42,14 +47,17 @@ class UserService(
         birthday: String? = null,
         mobile: String? = null,
     ): UserEntity {
-        val user = userRepository.findByProviderAndProviderUserId(provider, providerUserId)
+        val existing = userRepository.findByProviderAndProviderUserId(provider, providerUserId)
+        val emailOwner = email?.trim()?.takeIf { it.isNotEmpty() }?.let { userRepository.findByEmail(it) }
+        if (existing == null && emailOwner != null) throw EmailAlreadyRegisteredException(emailOwner.provider)
+        val user = existing
             ?: userRepository.save(
                 UserEntity(provider = provider, providerUserId = providerUserId, nickname = null, email = null)
                     .apply { roles += rolesOf(setOf(UserRole.USER)) },
             )
         nickname?.let { user.nickname = it.take(100) }
         name?.let { user.name = it.take(100) }
-        email?.let { user.email = it.take(255) }
+        email?.trim()?.takeIf { it.isNotEmpty() && (emailOwner == null || emailOwner === user || (emailOwner.id != null && emailOwner.id == user.id)) }?.let { user.email = it.take(255) }
         gender?.let { user.gender = it }
         birthday?.let { user.birthday = it }
         mobile?.let { user.mobile = it }

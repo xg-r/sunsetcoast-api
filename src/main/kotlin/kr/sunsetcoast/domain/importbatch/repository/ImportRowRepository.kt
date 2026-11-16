@@ -6,4 +6,8 @@ import org.springframework.data.jpa.repository.JpaRepository
 
 interface ImportRowRepository : JpaRepository<ImportRowEntity, Long> {
     fun findByResultOrderByIdAsc(result: ImportRowResult): List<ImportRowEntity>
+
+    fun findByImportBatchIdIn(importBatchIds: Collection<Long>): List<ImportRowEntity>
+
+    fun deleteByImportBatchId(importBatchId: Long)
 }
