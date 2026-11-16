@@ -52,6 +52,12 @@ class StayCalendarService(
             .forEach { it.applyStayFlags(weekend = null, peakSeason = null) }
     }
 
+    /** 업소·날짜를 다시 계산한다. 예약이나 정산 행을 지운 뒤, 지워진 밤의 표를 다시 세는 데 쓴다. */
+    @Transactional
+    fun refreshDates(datesByProperty: Map<Long, Set<LocalDate>>) {
+        datesByProperty.forEach { (propertyId, dates) -> recompute(propertyId, dates) }
+    }
+
     /** 전체 다시 계산. 공휴일 시드를 추가했거나 요금표를 고친 뒤 실행한다. */
     @Transactional
     fun recalculateAll(): Int {

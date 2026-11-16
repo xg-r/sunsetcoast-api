@@ -19,6 +19,23 @@ interface SettlementLineRepository : JpaRepository<SettlementLineEntity, Long> {
 
     fun findByReservationIdIn(reservationIds: Collection<Long>): List<SettlementLineEntity>
 
+    /** 숙박일 월·업소·플랫폼·행 유형별 합계. 외부 소유주 객실(Villa II·III)은 매출 KPI에서 뺀다 */
+    @Query(
+        """
+        select new kr.sunsetcoast.domain.settlement.repository.MonthlyRevenueRow(
+            year(l.stayDate), month(l.stayDate), l.room.property.id, l.reservation.source, l.lineType,
+            sum(l.grossAmount), sum(l.netAmount), count(l))
+        from SettlementLineEntity l
+        where l.stayDate between :from and :to
+          and l.room.businessOwnerEntity.ownershipType = kr.sunsetcoast.domain.businessowner.vo.OwnershipType.FAMILY
+        group by year(l.stayDate), month(l.stayDate), l.room.property.id, l.reservation.source, l.lineType
+        """
+    )
+    fun sumRevenueByMonth(from: LocalDate, to: LocalDate): List<MonthlyRevenueRow>
+
+    @Query("select l from SettlementLineEntity l join fetch l.reservation join fetch l.room where l.importBatchId = :batchId")
+    fun findByImportBatchId(batchId: Long): List<SettlementLineEntity>
+
     @Query(
         """
         select new kr.sunsetcoast.domain.settlement.repository.BatchPropertyCount(l.importBatchId, l.room.property.id, count(l))
@@ -45,3 +62,15 @@ data class BatchPropertyCount(val batchId: Long, val propertyId: Long, val lines
 
 /** 업로드 파일별 마지막 정산일 */
 data class BatchSettledOn(val batchId: Long, val settledOn: LocalDate)
+
+/** 숙박일 월별 매출 집계 행 */
+data class MonthlyRevenueRow(
+    val year: Int,
+    val month: Int,
+    val propertyId: Long,
+    val source: kr.sunsetcoast.domain.reservation.vo.OtaPlatform,
+    val lineType: SettlementLineType,
+    val gross: java.math.BigDecimal,
+    val net: java.math.BigDecimal,
+    val lines: Long,
+)

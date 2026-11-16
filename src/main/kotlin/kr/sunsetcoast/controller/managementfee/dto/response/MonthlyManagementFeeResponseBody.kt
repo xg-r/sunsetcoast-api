@@ -17,6 +17,16 @@ data class MonthlyManagementFeeResponseBody(
     val chargedCount: Int,
     @field:Schema(description = "지급 합계", example = "5160000")
     val totalAmount: BigDecimal,
+    @field:Schema(description = "입금 완료 합계 (입금 완료로 표시할 때의 금액)", example = "3000000")
+    val paidAmount: BigDecimal,
+    @field:Schema(description = "미입금 건수 (지급액이 있고 입금 완료가 아닌 행)", example = "40")
+    val unpaidCount: Int,
+    @field:Schema(description = "미입금 합계", example = "2160000")
+    val unpaidAmount: BigDecimal,
+    @field:Schema(description = "확인한 건수 (금액이 바뀐 건 제외)", example = "32")
+    val verifiedCount: Int,
+    @field:Schema(description = "확인한 뒤 금액이 바뀌어 다시 확인해야 하는 건수", example = "1")
+    val reverifyCount: Int,
     val items: List<ManagementFeeResponseBody>,
 ) {
     companion object {
@@ -26,6 +36,11 @@ data class MonthlyManagementFeeResponseBody(
             month = month.toString(),
             chargedCount = fees.count { it.amount.signum() > 0 },
             totalAmount = fees.fold(BigDecimal.ZERO) { sum, fee -> sum + fee.amount },
+            paidAmount = fees.filter { it.paid }.fold(BigDecimal.ZERO) { sum, fee -> sum + fee.paidAmount!! },
+            unpaidCount = fees.count { !it.paid && it.amount.signum() > 0 },
+            unpaidAmount = fees.filter { !it.paid }.fold(BigDecimal.ZERO) { sum, fee -> sum + fee.amount },
+            verifiedCount = fees.count { it.verified && !it.amountChangedAfterVerification },
+            reverifyCount = fees.count { it.verified && it.amountChangedAfterVerification },
             items = fees.map { ManagementFeeResponseBody.from(it) },
         )
     }

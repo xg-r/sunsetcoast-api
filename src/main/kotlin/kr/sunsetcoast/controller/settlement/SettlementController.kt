@@ -9,11 +9,13 @@ import kr.sunsetcoast.domain.reservation.vo.OtaPlatform
 import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.ResponseStatus
+import kr.sunsetcoast.controller.settlement.dto.response.ImportBatchDeleteResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.ImportBatchResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.ResolveUnmappedRowResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementFileCoverageResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.UnmappedRowResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementImportResponseBody
+import kr.sunsetcoast.domain.settlement.service.ImportBatchDeleteService
 import kr.sunsetcoast.domain.settlement.service.SettlementCoverageService
 import kr.sunsetcoast.domain.settlement.service.SettlementImportService
 import kr.sunsetcoast.domain.settlement.service.UnmappedRowService
@@ -35,6 +37,7 @@ class SettlementController(
     private val settlementImportService: SettlementImportService,
     private val unmappedRowService: UnmappedRowService,
     private val settlementCoverageService: SettlementCoverageService,
+    private val importBatchDeleteService: ImportBatchDeleteService,
 ) : SettlementControllerDocs {
     /**
      * 정산 파일 업로드. 플랫폼은 파일 내용으로 자동 판별한다.
@@ -59,6 +62,10 @@ class SettlementController(
     @GetMapping("/import-batches", version = "1.0")
     override fun getImportBatches(): List<ImportBatchResponseBody> =
         settlementImportService.findRecentBatches().map { ImportBatchResponseBody.from(it) }
+
+    @DeleteMapping("/import-batches/{id}", version = "1.0")
+    override fun deleteImportBatch(@PathVariable id: Long): ImportBatchDeleteResponseBody =
+        ImportBatchDeleteResponseBody.from(importBatchDeleteService.delete(id))
 
     @GetMapping("/coverage", version = "1.0")
     override fun getCoverage(): List<SettlementFileCoverageResponseBody> =

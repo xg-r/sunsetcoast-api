@@ -17,6 +17,11 @@ data class SettlementFileCoverageResponseBody(
     val issuedOn: String,
     @field:Schema(description = "정산일을 파일명에서 읽었는지 (false면 정산 행이나 업로드일로 추정)")
     val issuedOnFromFileName: Boolean,
+    @field:Schema(
+        description = "이 파일이 담은 정산일 전부. 떠나요에서 한 달 치를 한 번에 받은 파일은 여러 개이고, 파일 현황은 이 날짜들의 주를 모두 업로드된 주로 본다",
+        example = "[\"2026-10-06\", \"2026-10-13\"]",
+    )
+    val settlementDates: List<String>,
     val fileName: String,
     val totalRows: Int,
     val insertedRows: Int,
@@ -34,6 +39,7 @@ data class SettlementFileCoverageResponseBody(
             propertyId = file.propertyId,
             issuedOn = file.issuedOn.toString(),
             issuedOnFromFileName = file.issuedOnFromFileName,
+            settlementDates = file.settlementDates.map { it.toString() },
             fileName = file.batch.fileName,
             totalRows = file.batch.totalRows,
             insertedRows = file.batch.insertedRows,

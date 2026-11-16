@@ -5,6 +5,9 @@ server:
   # X-Forwarded-Host/Proto 를 믿어야 OAuth redirect_uri 가 화면 주소로 만들어진다.
   # 백엔드를 인터넷에 직접 열지 말고 화면(또는 리버스 프록시)을 통해서만 받을 것.
   forward-headers-strategy: framework
+  tomcat:
+    # 정산 파일을 한 번에 여러 개 올린다 (기본값 10개, 8월 한 달치만 27개)
+    max-part-count: 200
   servlet:
     session:
       timeout: 12h
@@ -13,6 +16,11 @@ server:
         same-site: lax
 
 spring:
+  # 정산 파일을 한 번에 여러 개(작년 파일 일괄 등) 올린다. 기본값(파일 1MB, 요청 10MB)으로는 모자란다
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 100MB
   security:
     oauth2:
       client:

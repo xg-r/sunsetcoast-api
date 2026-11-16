@@ -22,6 +22,7 @@ class SettlementFileParsers(
 
         for (parser in parsers) {
             val table = sheet.tableWithHeaders(parser.requiredHeaders) ?: continue
+            parser.validateFile(table.rows)
             val rows = table.rows.mapNotNull { row ->
                 val payload = row.values.filterKeys { header -> PII_HEADERS.none { header.contains(it) } }
                 try {

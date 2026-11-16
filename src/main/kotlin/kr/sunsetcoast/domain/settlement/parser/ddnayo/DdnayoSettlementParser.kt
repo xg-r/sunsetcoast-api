@@ -25,6 +25,19 @@ class DdnayoSettlementParser : SettlementFileParser {
         RESERVATION_NUMBER, ROOM, USE_DATE, NIGHTS, SALES, SETTLEMENT, COMMISSION, RESERVATION_STATUS,
     )
 
+    /**
+     * 정산이 끝난 파일만 받는다. 떠나요 AdjustCalendar는 아직 정산 전인 예약(정산상태 '미정산')도 내려받을 수 있는데,
+     * 그 금액은 바뀔 수 있고 실제 입금과도 맞지 않으므로 한 행이라도 '정산완료'가 아니면 파일을 거부한다.
+     */
+    override fun validateFile(rows: List<SheetRow>) {
+        val unsettled = rows.filter { it.textOrNull(RESERVATION_NUMBER) != null && it.text(SETTLEMENT_STATUS) != SETTLED }
+        require(unsettled.isEmpty()) {
+            "정산완료가 아닌 행이 ${unsettled.size}개 있어 올릴 수 없습니다 " +
+                "(예: ${unsettled.take(3).joinToString { "${it.text(RESERVATION_NUMBER)} '${it.text(SETTLEMENT_STATUS).ifEmpty { "비어 있음" }}'" }}). " +
+                "떠나요에서 정산이 끝난 뒤 다시 내려받아 올려 주세요."
+        }
+    }
+
     override fun parse(row: SheetRow): List<ParsedSettlementLine>? {
         val reservationNumber = row.textOrNull(RESERVATION_NUMBER) ?: return null
 
@@ -112,5 +125,7 @@ class DdnayoSettlementParser : SettlementFileParser {
         const val SETTLEMENT = "정산금액"
         const val COMMISSION = "수수료"
         const val RESERVATION_STATUS = "예약상태"
+        const val SETTLEMENT_STATUS = "정산상태"
+        const val SETTLED = "정산완료"
     }
 }

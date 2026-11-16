@@ -119,6 +119,21 @@ class SettlementLineEntity(
         updatedAt = LocalDateTime.now()
     }
 
+    /** 업로드 삭제로 이전 값으로 되돌린다 */
+    fun restore(amounts: SettlementAmounts, settledOn: LocalDate?, importBatchId: Long?) {
+        val normalized = amounts.normalized()
+        grossAmount = normalized.gross
+        partnerDiscount = normalized.partnerDiscount
+        platformDiscount = normalized.platformDiscount
+        commissionRate = normalized.commissionRate
+        commissionAmount = normalized.commission
+        otherFee = normalized.otherFee
+        netAmount = normalized.net
+        this.settledOn = settledOn
+        this.importBatchId = importBatchId
+        updatedAt = LocalDateTime.now()
+    }
+
     companion object {
         fun create(
             reservation: ReservationEntity,

@@ -33,7 +33,19 @@ data class DirectReservationRequestBody(
     val memo: String? = null,
     @field:Schema(description = "같은 객실·날짜에 예약이 있어도 저장", example = "false")
     val allowOverlap: Boolean = false,
+    @field:Schema(
+        description = "객실별 현장 관리비. 생략하면 단가대로 자동 계산. 단가와 다르면 관리자 수정값으로 저장 (현장 결제라 관리비를 주지 않는 경우 등). 입금 상태는 바뀌지 않는다",
+        nullable = true,
+    )
+    val managementFees: List<ManagementFee>? = null,
 ) {
+    @Schema(name = "DirectReservationManagementFee")
+    data class ManagementFee(
+        val roomId: Long,
+        @field:Schema(example = "0")
+        val amount: BigDecimal,
+    )
+
     @Schema(name = "DirectReservationNightlyPrice")
     data class NightlyPrice(
         val roomId: Long,
@@ -56,5 +68,6 @@ data class DirectReservationRequestBody(
         paid = paid,
         memo = memo,
         allowOverlap = allowOverlap,
+        managementFees = managementFees?.associate { it.roomId to it.amount },
     )
 }

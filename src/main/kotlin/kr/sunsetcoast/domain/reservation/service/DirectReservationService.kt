@@ -2,6 +2,7 @@ package kr.sunsetcoast.domain.reservation.service
 
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kr.sunsetcoast.domain.businessowner.vo.OwnershipType
+import kr.sunsetcoast.domain.managementfee.repository.ManagementFeeRateRepository
 import kr.sunsetcoast.domain.managementfee.repository.ManagementFeeRepository
 import kr.sunsetcoast.domain.managementfee.service.ManagementFeeService
 import kr.sunsetcoast.domain.reservation.entity.ReservationEntity
@@ -60,6 +61,7 @@ class DirectReservationService(
     private val holidayRepository: HolidayRepository,
     private val stayCalendarService: StayCalendarService,
     private val managementFeeService: ManagementFeeService,
+    private val managementFeeRateRepository: ManagementFeeRateRepository,
 ) {
     data class RoomNightPrice(val roomId: Long, val date: LocalDate, val amount: BigDecimal)
 
@@ -77,6 +79,11 @@ class DirectReservationService(
         val memo: String?,
         /** 겹치는 예약이 있어도 저장 */
         val allowOverlap: Boolean,
+        /**
+         * 객실별 현장 관리비. 없으면(null) 단가대로 자동 계산. 단가와 다르면 관리자 수정값으로 저장한다
+         * (현장 결제라 관리비를 주지 않는 경우 등). 입금 상태는 바꾸지 않는다 (미입금 그대로).
+         */
+        val managementFees: Map<Long, BigDecimal>? = null,
     )
 
     data class Conflict(
@@ -103,6 +110,8 @@ class DirectReservationService(
         val conflicts: List<Conflict>,
         /** 외부 소유주 객실이 있어 소유주 계좌로 입금되는 예약 */
         val ownerPaid: Boolean,
+        /** 객실별 관리비 기본값 (입실일의 단가). 단가가 없으면 null */
+        val managementFeeDefaults: Map<Long, BigDecimal?>,
     )
 
     /** 요금표·성수기·주말로 1박 금액을 제안하고, 겹치는 예약을 찾는다. */
@@ -129,7 +138,7 @@ class DirectReservationService(
                 },
             )
         }
-        return Quote(nightQuotes, findConflicts(rooms, checkIn, nights, excludeReservationId), isOwnerPaid(rooms))
+        return Quote(nightQuotes, findConflicts(rooms, checkIn, nights, excludeReservationId), isOwnerPaid(rooms), feeDefaults(roomIds, checkIn))
     }
 
     @Transactional
@@ -212,7 +221,9 @@ class DirectReservationService(
     @Transactional
     fun delete(id: Long) {
         val reservation = findDirect(id)
-        managementFeeRepository.deleteAll(managementFeeRepository.findByReservationIdIn(listOf(id)))
+        val fees = managementFeeRepository.findByReservationIdIn(listOf(id))
+        check(fees.none { it.paid }) { "입금 완료된 관리비가 있어 삭제할 수 없습니다. 관리비 화면에서 입금 완료를 취소한 뒤 삭제해 주세요." }
+        managementFeeRepository.deleteAll(fees)
         settlementLineRepository.deleteAll(settlementLineRepository.findByReservationId(id))
         reservationRoomRepository.deleteAll(reservationRoomRepository.findByReservationIds(listOf(id)))
         reservationRepository.delete(reservation)
@@ -258,6 +269,29 @@ class DirectReservationService(
         reservation.memo = command.memo?.trim()?.ifEmpty { null }
         reservation.paymentReceiver = if (isOwnerPaid(rooms)) PaymentReceiver.OWNER else PaymentReceiver.US
         refresh(reservation)
+        command.managementFees?.let { applyManagementFees(reservation, it) }
+    }
+
+    /** 객실별 관리비 기본값: 입실일에 적용되는 단가 */
+    private fun feeDefaults(roomIds: List<Long>, checkIn: LocalDate): Map<Long, BigDecimal?> {
+        val rates = managementFeeRateRepository.findByRoomIdIn(roomIds).groupBy { it.roomId }
+        return roomIds.associateWith { roomId -> rates[roomId]?.singleOrNull { it.appliesTo(checkIn) }?.amount }
+    }
+
+    /**
+     * 입력한 관리비를 반영한다. 자동 계산 금액과 같으면 수정값을 지우고, 다르면 수정값으로 둔다.
+     * 입금 완료된 관리비는 금액을 바꿀 수 없다 (같은 금액이면 그대로 둔다).
+     */
+    private fun applyManagementFees(reservation: ReservationEntity, amounts: Map<Long, BigDecimal>) {
+        managementFeeRepository.flush()
+        val fees = managementFeeRepository.findByReservationIdIn(listOf(reservation.id!!)).associateBy { it.room.id!! }
+        amounts.forEach { (roomId, amount) ->
+            require(amount.signum() >= 0) { "관리비는 0원 이상이어야 합니다." }
+            val fee = fees[roomId] ?: throw IllegalArgumentException("이 예약에 없는 객실의 관리비입니다: $roomId")
+            if (fee.amount.compareTo(amount) == 0) return@forEach
+            check(!fee.paid) { "입금 완료된 관리비는 금액을 바꿀 수 없습니다. 관리비 화면에서 입금 완료를 취소한 뒤 고쳐 주세요." }
+            if (fee.calculatedAmount.compareTo(amount) == 0) fee.clearOverride() else fee.overrideManually(amount, FEE_REASON)
+        }
     }
 
     private fun refresh(reservation: ReservationEntity) {
@@ -338,6 +372,8 @@ class DirectReservationService(
     }
 
     companion object {
+        /** 예약 입력에서 관리비를 바꿨을 때 남기는 수정 사유 */
+        const val FEE_REASON = "예약 입력에서 지정 (현장 결제 등)"
         private const val MAX_NIGHTS = 90
         val DIRECT_CHANNELS = setOf(SalesChannel.PHONE, SalesChannel.WALK_IN, SalesChannel.OTHER)
     }

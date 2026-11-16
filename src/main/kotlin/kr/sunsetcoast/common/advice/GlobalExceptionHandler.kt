@@ -8,6 +8,7 @@ import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
+import org.springframework.web.HttpRequestMethodNotSupportedException
 import org.springframework.web.servlet.resource.NoResourceFoundException
 
 private val logger = KotlinLogging.logger {}
@@ -68,6 +69,15 @@ class GlobalExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.NOT_FOUND)
             .body(ErrorResponse(exception = "NoResourceFoundException", message = "없는 주소입니다."))
+    }
+
+    /** 그 주소에서 받지 않는 요청 (예: 조회만 되는 로그인 기록에 POST·DELETE) → 405 */
+    @ExceptionHandler(HttpRequestMethodNotSupportedException::class)
+    fun handleMethodNotSupported(e: HttpRequestMethodNotSupportedException): ResponseEntity<ErrorResponse> {
+        logger.warn { "[MethodNotSupported] ${e.method} ${e.message}" }
+        return ResponseEntity
+            .status(HttpStatus.METHOD_NOT_ALLOWED)
+            .body(ErrorResponse(exception = "HttpRequestMethodNotSupportedException", message = "이 주소에서는 할 수 없는 작업입니다 (${e.method})."))
     }
 
     @ExceptionHandler(Exception::class)

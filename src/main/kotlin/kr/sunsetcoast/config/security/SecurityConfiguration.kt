@@ -1,14 +1,19 @@
 package kr.sunsetcoast.config.security
 
 import kr.sunsetcoast.common.response.ErrorResponse
+import kr.sunsetcoast.domain.loginevent.entity.LoginEventEntity
+import kr.sunsetcoast.domain.loginevent.service.LoginEventService
 import kr.sunsetcoast.domain.user.service.UserService
+import kr.sunsetcoast.domain.user.vo.AuthProvider
 import kr.sunsetcoast.domain.user.vo.UserRole
 import org.springframework.beans.factory.annotation.Value
 import org.springframework.context.annotation.Bean
 import org.springframework.context.annotation.Configuration
+import org.springframework.http.HttpMethod
 import org.springframework.http.HttpStatus
 import org.springframework.http.MediaType
 import org.springframework.security.config.annotation.web.builders.HttpSecurity
+import org.springframework.security.oauth2.core.OAuth2AuthenticationException
 import org.springframework.security.web.SecurityFilterChain
 import org.springframework.security.web.access.intercept.AuthorizationFilter
 import org.springframework.security.web.authentication.logout.HttpStatusReturningLogoutSuccessHandler
@@ -46,6 +51,7 @@ class SecurityConfiguration(
         oAuth2UserService: SunsetcoastOAuth2UserService,
         userService: UserService,
         securityContextRepository: SecurityContextRepository,
+        loginEventService: LoginEventService,
     ): SecurityFilterChain {
         val superAdmin = UserRole.SUPER_ADMIN.name
         val siteManager = UserRole.SITE_MANAGER.name
@@ -55,7 +61,9 @@ class SecurityConfiguration(
                     .requestMatchers("/auth/dev-login").permitAll()
                     .apply { if (apiDocsEnabled) requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll() }
                     .requestMatchers("/auth/**").authenticated()
-                    .requestMatchers("/management-fees/**", "/admin/**", "/reservations/direct/**").hasRole(superAdmin)
+                    .requestMatchers("/management-fees/**", "/admin/**", "/reservations/direct/**", "/bank/**", "/analytics/**").hasRole(superAdmin)
+                    // 잘못 올린 정산 파일 삭제: 예약·관리비까지 지울 수 있어 본사만
+                    .requestMatchers(HttpMethod.DELETE, "/settlements/import-batches/**").hasRole(superAdmin)
                     .anyRequest().hasAnyRole(superAdmin, siteManager)
             }
             .securityContext { it.securityContextRepository(securityContextRepository) }
@@ -63,11 +71,37 @@ class SecurityConfiguration(
             .requestCache { it.disable() }
             .oauth2Login {
                 it.userInfoEndpoint { endpoint -> endpoint.userService(oAuth2UserService) }
-                it.defaultSuccessUrl(loginSuccessUrl, true)
-                it.failureUrl(loginFailureUrl)
+                // 로그인 성공: 기록을 남기고 화면으로
+                it.successHandler { request, response, authentication ->
+                    val login = authentication.principal as? LoginUser
+                    loginEventService.record(LoginEventEntity.EventType.LOGIN_SUCCESS, request, userId = login?.userId)
+                    response.sendRedirect(request.contextPath + loginSuccessUrl)
+                }
+                // 같은 이메일로 다른 플랫폼에 가입돼 있으면 ?error=already_registered&provider=KAKAO 로 돌려보낸다
+                it.failureHandler { request, response, exception ->
+                    val error = (exception as? OAuth2AuthenticationException)?.error
+                    // 로그인 실패도 기록한다 (어느 플랫폼으로 시도했는지는 콜백 주소 /login/oauth2/code/{naver|kakao})
+                    loginEventService.record(
+                        LoginEventEntity.EventType.LOGIN_FAILURE,
+                        request,
+                        provider = request.requestURI.substringAfterLast('/').uppercase().takeIf { it == "NAVER" || it == "KAKAO" },
+                        failureReason = loginFailureReason(error?.errorCode, error?.description, exception.message),
+                    )
+                    val target = if (error?.errorCode == EMAIL_ALREADY_REGISTERED) {
+                        val base = loginFailureUrl.substringBefore('?')
+                        "$base?error=already_registered&provider=${error.description}"
+                    } else {
+                        loginFailureUrl
+                    }
+                    response.sendRedirect(request.contextPath + target)
+                }
             }
             .logout {
                 it.logoutUrl("/auth/logout")
+                it.addLogoutHandler { request, _, authentication ->
+                    val login = authentication?.principal as? LoginUser ?: return@addLogoutHandler
+                    loginEventService.record(LoginEventEntity.EventType.LOGOUT, request, userId = login.userId)
+                }
                 it.logoutSuccessHandler(HttpStatusReturningLogoutSuccessHandler(HttpStatus.NO_CONTENT))
             }
             .csrf {
@@ -85,6 +119,17 @@ class SecurityConfiguration(
             .addFilterBefore(CurrentRoleFilter(userService), AuthorizationFilter::class.java)
             .addFilterAfter(CsrfCookieFilter(), CsrfFilter::class.java)
         return http.build()
+    }
+
+    /** 로그인 실패 이유를 관리자가 읽을 수 있는 말로 (OAuth 오류 코드 → 한국어) */
+    private fun loginFailureReason(code: String?, description: String?, message: String?): String = when (code) {
+        EMAIL_ALREADY_REGISTERED ->
+            "이미 ${description?.let { d -> runCatching { AuthProvider.valueOf(d).label }.getOrDefault(d) } ?: "다른 플랫폼"}(으)로 가입된 이메일"
+        "access_denied" -> "네이버·카카오 로그인 화면에서 취소함 (동의 안 함)"
+        "authorization_request_not_found", "invalid_state_parameter" -> "잘못된 로그인 요청 (시간이 지났거나 로그인 주소로 바로 접근)"
+        "invalid_token_response", "invalid_user_info_response" -> "네이버·카카오에서 사용자 정보를 받지 못함"
+        null -> message ?: "알 수 없는 이유"
+        else -> "로그인 실패 ($code)"
     }
 
     private fun writeError(response: HttpServletResponse, status: HttpStatus, exception: String, message: String) {

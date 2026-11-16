@@ -17,6 +17,7 @@ class UserServiceSuperAdminTest : FunSpec({
     fun userRepository(): UserRepository = Proxy.newProxyInstance(UserRepository::class.java.classLoader, arrayOf(UserRepository::class.java)) { _, method, args ->
         when (method.name) {
             "findByProviderAndProviderUserId" -> null
+            "findByEmail" -> null
             "save" -> args[0]
             else -> throw UnsupportedOperationException(method.name)
         }

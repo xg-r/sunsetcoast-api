@@ -67,8 +67,8 @@ class SettlementFileParsersTest : FunSpec({
             val bytes = WorkbookFixtures.xls(
                 listOf(
                     header,
-                    listOf(1, "바다", "2026-08-01", "떠나요", "", "", "2026-08-20", 1, 170000, 0, 0, "미정산", "떠나요", "예약취소", ""),
-                    listOf(2, "바다", "2026-08-01", "떠나요", "", "", "2026-08-21", 1, 222000, 68530, 6000, "완료", "떠나요", "예약취소", ""),
+                    listOf(1, "바다", "2026-08-01", "떠나요", "", "", "2026-08-20", 1, 170000, 0, 0, "정산완료", "떠나요", "예약취소", ""),
+                    listOf(2, "바다", "2026-08-01", "떠나요", "", "", "2026-08-21", 1, 222000, 68530, 6000, "정산완료", "떠나요", "예약취소", ""),
                 )
             )
 
@@ -78,6 +78,23 @@ class SettlementFileParsersTest : FunSpec({
             rows[1].lines.single().amounts.net shouldBe BigDecimal(68530)
             rows[1].lines.single().amounts.gross shouldBe BigDecimal(74530)
         }
+    }
+
+    test("떠나요: 한 행이라도 정산완료가 아니면 파일을 거부한다") {
+        val header = listOf(
+            "예약번호", "객실/자리", "예약일", "유입", "예약자", "연락처", "이용일", "이용박수",
+            "매출", "정산금액", "수수료", "정산상태", "결제구분", "예약상태", "사업자번호",
+        )
+        fun row(no: Int, status: String) =
+            listOf(no, "바다", "2026-11-01", "야놀자", "", "", "2026-11-03", 1, 100000, 89000, 11000, status, "야놀자", "결제완료", "")
+
+        val e = shouldThrow<IllegalArgumentException> {
+            parsers.parse(WorkbookFixtures.xls(listOf(header, row(1, "정산완료"), row(2, "미정산"), row(3, "미정산"))))
+        }
+        e.message!! shouldContain "정산완료가 아닌 행이 2개"
+        e.message!! shouldContain "2 '미정산'"
+
+        parsers.parse(WorkbookFixtures.xls(listOf(header, row(1, "정산완료"), row(2, "정산완료")))).rows shouldHaveSize 2
     }
 
     context("여기어때 정산 파일 (xlsx, 1박 단위)") {

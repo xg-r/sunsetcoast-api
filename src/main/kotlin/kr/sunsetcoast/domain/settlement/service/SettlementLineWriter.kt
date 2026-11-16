@@ -115,6 +115,13 @@ class SettlementLineWriter(
         managementFeeService.refresh(touched)
     }
 
+    /** 정산 행을 지우거나 되돌린 뒤(업로드 삭제) 남은 행으로 예약을 다시 계산한다. */
+    fun refresh(reservations: Collection<ReservationEntity>) {
+        reservations.forEach { refreshStay(it, null) }
+        stayCalendarService.refresh(reservations)
+        managementFeeService.refresh(reservations)
+    }
+
     private fun weights(rooms: List<RoomEntity>): List<BigDecimal> {
         if (rooms.size == 1) return listOf(BigDecimal.ONE)
         val prices = roomListPriceRepository.findAllById(rooms.map { it.id!! }).associate { it.roomId to it.offpeakWeekday }
@@ -192,7 +199,9 @@ class SettlementLineWriter(
             SettlementLineRevisionEntity(
                 settlementLineId = existing.id!!,
                 importBatchId = context.batchId,
+                previousImportBatchId = existing.importBatchId,
                 previousValues = jsonMapper.writeValueAsString(previous),
+                previousSettledOn = existing.settledOn,
             )
         )
         existing.update(current, line.settledOn, line.splitEstimated, context.batchId)
