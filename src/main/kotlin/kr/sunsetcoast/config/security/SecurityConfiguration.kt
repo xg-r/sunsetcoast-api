@@ -60,6 +60,10 @@ class SecurityConfiguration(
                 it.requestMatchers("/oauth2/**", "/login/**", "/error").permitAll()
                     .requestMatchers("/auth/dev-login").permitAll()
                     .apply { if (apiDocsEnabled) requestMatchers("/v3/api-docs/**", "/swagger-ui/**", "/swagger-ui.html").permitAll() }
+                    // 일반 사용자용 API (sunsetcoast.kr): 공개 /public/**, 로그인한 누구나 /me/**.
+                    // api.sunsetcoast.kr에서는 Caddy가 이 두 경로만 밖으로 연다 (deploy/Caddyfile)
+                    .requestMatchers("/public/**").permitAll()
+                    .requestMatchers("/me/**").authenticated()
                     .requestMatchers("/auth/**").authenticated()
                     .requestMatchers("/management-fees/**", "/admin/**", "/reservations/direct/**", "/bank/**", "/analytics/**").hasRole(superAdmin)
                     // 잘못 올린 정산 파일 삭제: 예약·관리비까지 지울 수 있어 본사만

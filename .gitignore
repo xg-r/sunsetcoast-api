@@ -53,3 +53,6 @@ docs/매출비교/
 docs/**/AdjustCalendar*.xls*
 docs/**/정산내역_*.xls*
 docs/**/정산상세내역_*.xls*
+
+### 운영 비밀값 ###
+deploy/.env

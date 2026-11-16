@@ -5,6 +5,7 @@ OTA 정산 파일(떠나요·여기어때·NOL)과 계좌 거래내역을 올리
 
 - 관리자 화면: [sunsetcoast-admin-web](https://github.com/xg-r/sunsetcoast-admin-web) (Next.js)
 - 설계·진행 현황·인수인계: [`docs/운영데이터플랫폼.md`](docs/운영데이터플랫폼.md) (작업을 이어갈 때 §6부터 읽기)
+- 운영 배포 (AWS EC2 + Docker Compose): [`deploy/README.md`](deploy/README.md)
 
 ## 주요 기능
 
@@ -99,10 +100,13 @@ curl -X POST -H "X-API-Version: 1.0" "http://localhost:8080/auth/dev-login?role=
 
   | 경로 | 역할 |
   |---|---|
+  | `/public/**` | 누구나 (일반 사용자용 공개 API, `GET /public/health`) |
+  | `/me/**` | 로그인한 누구나 (일반 사용자용) |
   | `/auth/**` | 로그인한 누구나 |
   | `/management-fees/**`, `/admin/**`, `/reservations/direct/**`, `/bank/**`, `/analytics/**`, 정산 파일 삭제 | 슈퍼어드민 |
   | 그 밖의 관리자 API | 슈퍼어드민, 현장관리자 |
 
+- **공개 범위**: 운영에서 `api.sunsetcoast.kr`은 `/public/**`, `/me/**`만 밖으로 연다 (Caddy). 관리자 API는 `admin.sunsetcoast.kr` 화면 서버를 거쳐서만 닿는다
 - **오류 응답**: `{"exception": "...", "message": "..."}` (메시지는 화면에 그대로 보여 줄 수 있는 한국어). 잘못된 값 400, 권한 없음 403, 없는 주소 404, 받지 않는 메서드 405
 - 요청·응답 형식은 Swagger에서 확인합니다. 컨트롤러의 Swagger 설명은 `XxxControllerDocs` 인터페이스에 둡니다.
 
@@ -128,7 +132,7 @@ curl -X POST -H "X-API-Version: 1.0" "http://localhost:8080/auth/dev-login?role=
 
 ## 보안·개인정보
 
-- **백엔드를 인터넷에 직접 열지 않습니다.** 관리자 화면(또는 리버스 프록시)을 통해서만 받습니다. OAuth redirect URI를 화면 주소로 만들기 위해 `X-Forwarded-*` 헤더를 믿기 때문입니다 (`server.forward-headers-strategy: framework`).
+- **백엔드를 인터넷에 직접 열지 않습니다.** Caddy(리버스 프록시)와 관리자 화면을 통해서만 받습니다 ([`deploy/`](deploy/README.md)). OAuth redirect URI를 화면 주소로 만들기 위해 `X-Forwarded-*` 헤더를 믿기 때문입니다 (`server.forward-headers-strategy: framework`).
 - **플랫폼 정산 원본 파일·계좌 거래내역은 git에 올리지 않습니다** (고객 이름·연락처, 계좌 정보). `docs` 아래 원본 파일은 `.gitignore`로 제외됩니다. 코드·테스트에도 실제 계좌번호·이메일·실명을 넣지 않습니다.
 - 로그인 기록은 조회만 됩니다. DB 트리거가 수정과 1년이 안 된 기록의 삭제를 막고, 1년 지난 기록은 매일 자동으로 지웁니다.
 
