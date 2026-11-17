@@ -78,9 +78,10 @@ services:
       - --performance-schema=OFF
       # 바이너리 로그 끔 (복제 안 함, 백업은 mysqldump). 로그인 기록 트리거(V37)를 일반 계정으로 만들 수 있다
       - --skip-log-bin
-    # 서버 안(127.0.0.1)에만 연다. 밖에서는 SSH 터널로 접속한다 (README 9번). 0.0.0.0으로 바꾸지 말 것
+    # DBeaver 직접 접속용 (README 9번). 막는 것은 보안 그룹이다: 3306 인바운드는 사무실·집 IP만 연다.
+    # Docker가 연 포트는 ufw를 거치지 않으니 서버 방화벽으로는 막히지 않는다
     ports:
-      - "127.0.0.1:3306:3306"
+      - "3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
