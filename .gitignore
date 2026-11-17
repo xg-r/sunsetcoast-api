@@ -56,3 +56,5 @@ docs/**/정산상세내역_*.xls*
 
 ### 운영 비밀값 ###
 deploy/.env
+deploy/.env.*
+!deploy/.env.example
