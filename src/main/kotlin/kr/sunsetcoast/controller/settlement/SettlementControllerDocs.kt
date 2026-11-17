@@ -14,6 +14,7 @@ import kr.sunsetcoast.controller.settlement.dto.response.ImportBatchResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementFileCoverageResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementWeekCheckResponseBody
 import kr.sunsetcoast.controller.settlement.dto.request.SettlementWeekCheckRequestBody
+import kr.sunsetcoast.controller.settlement.dto.request.SettlementAccountBusinessNumberRequestBody
 import kr.sunsetcoast.controller.settlement.dto.request.SettlementAccountRequestBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementAccountResponseBody
 import kr.sunsetcoast.controller.settlement.dto.response.ResolveUnmappedRowResponseBody
@@ -100,6 +101,15 @@ interface SettlementControllerDocs {
 
     @Operation(summary = "정산 계정 등록", description = "계정 이름은 파일명에서 읽는 이름과 같아야 한다. 시작일은 그 주 월요일로 맞춘다.")
     fun addAccount(body: SettlementAccountRequestBody): SettlementAccountResponseBody
+
+    @Operation(
+        summary = "정산 계정 사업자번호 변경",
+        description = "떠나요 계정만. 떠나요에서 받은 그대로의 AdjustCalendar 파일은 파일 안의 사업자번호가 같은 이 계정으로 묶인다. 비우면 지운다.",
+    )
+    fun changeAccountBusinessNumber(
+        @Parameter(description = "정산 계정 ID") id: Long,
+        body: SettlementAccountBusinessNumberRequestBody,
+    ): SettlementAccountResponseBody
 
     @Operation(summary = "정산 계정 삭제", description = "등록만 지운다. 이미 올린 파일은 그대로 현황에 나온다.")
     fun removeAccount(@Parameter(description = "정산 계정 ID") id: Long)

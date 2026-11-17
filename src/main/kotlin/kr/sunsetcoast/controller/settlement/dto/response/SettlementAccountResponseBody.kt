@@ -2,6 +2,7 @@ package kr.sunsetcoast.controller.settlement.dto.response
 
 import io.swagger.v3.oas.annotations.media.Schema
 import kr.sunsetcoast.domain.settlement.entity.SettlementAccountEntity
+import kr.sunsetcoast.domain.settlement.vo.BusinessNumber
 
 @Schema(description = "등록한 정산 계정")
 data class SettlementAccountResponseBody(
@@ -14,6 +15,8 @@ data class SettlementAccountResponseBody(
     val propertyId: Long?,
     @field:Schema(description = "정산 파일이 있어야 하는 첫 주 (월요일)", example = "2026-08-03")
     val startedOn: String,
+    @field:Schema(description = "떠나요 사업자번호", nullable = true, example = "278-27-01574")
+    val businessNumber: String?,
 ) {
     companion object {
         fun from(entity: SettlementAccountEntity) = SettlementAccountResponseBody(
@@ -22,6 +25,7 @@ data class SettlementAccountResponseBody(
             account = entity.account,
             propertyId = entity.propertyId,
             startedOn = entity.startedOn.toString(),
+            businessNumber = entity.businessNumber?.let(BusinessNumber::format),
         )
     }
 }

@@ -27,6 +27,10 @@ class SettlementAccountEntity(
     @Column(name = "property_id")
     val propertyId: Long?,
 
+    /** 떠나요 사업자번호 (숫자 10자리). AdjustCalendar 원본 파일을 이 계정에 붙이는 데 쓴다 */
+    @Column(name = "business_number", length = 10)
+    var businessNumber: String? = null,
+
     /** 이 주(월요일)부터 정산 파일이 있어야 한다 */
     @Column(name = "started_on", nullable = false)
     val startedOn: LocalDate,

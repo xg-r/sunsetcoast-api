@@ -5,6 +5,7 @@ import kr.sunsetcoast.common.response.AmountText
 import kr.sunsetcoast.config.security.CurrentUser
 
 import kr.sunsetcoast.controller.settlement.dto.request.ResolveUnmappedRowRequestBody
+import kr.sunsetcoast.controller.settlement.dto.request.SettlementAccountBusinessNumberRequestBody
 import kr.sunsetcoast.controller.settlement.dto.request.SettlementAccountRequestBody
 import kr.sunsetcoast.controller.settlement.dto.request.SettlementWeekCheckRequestBody
 import kr.sunsetcoast.controller.settlement.dto.response.SettlementAccountResponseBody
@@ -26,6 +27,7 @@ import kr.sunsetcoast.domain.settlement.service.UnmappedRowService
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
+import org.springframework.web.bind.annotation.PutMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestBody
@@ -82,8 +84,15 @@ class SettlementController(
     @PostMapping("/coverage/accounts", version = "1.0")
     override fun addAccount(@RequestBody body: SettlementAccountRequestBody): SettlementAccountResponseBody =
         SettlementAccountResponseBody.from(
-            settlementCoverageService.addAccount(platformOf(body.platform), body.account, body.propertyId, body.startedOn),
+            settlementCoverageService.addAccount(platformOf(body.platform), body.account, body.propertyId, body.startedOn, body.businessNumber),
         )
+
+    @PutMapping("/coverage/accounts/{id}/business-number", version = "1.0")
+    override fun changeAccountBusinessNumber(
+        @PathVariable id: Long,
+        @RequestBody body: SettlementAccountBusinessNumberRequestBody,
+    ): SettlementAccountResponseBody =
+        SettlementAccountResponseBody.from(settlementCoverageService.changeBusinessNumber(id, body.businessNumber))
 
     @DeleteMapping("/coverage/accounts/{id}", version = "1.0")
     @ResponseStatus(HttpStatus.NO_CONTENT)
