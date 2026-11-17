@@ -1,14 +1,6 @@
-# HTTPS는 앞단의 ALB가 끝낸다 (ACM 인증서). Caddy는 ALB가 보낸 HTTP(80)만 받아서 도메인·경로별로 나눈다.
-#   브라우저 ─HTTPS→ ALB ─HTTP:80→ Caddy ─→ web / api
+# HTTPS 인증서는 Caddy가 Let's Encrypt에서 자동으로 받고 갱신한다 (DNS A 레코드가 이 서버를 가리켜야 함)
 {
-	auto_https off
-	servers {
-		# ALB(VPC 사설 주소)가 붙인 X-Forwarded-For/Proto/Host를 믿고 그대로 넘긴다.
-		# 이게 없으면 Caddy가 X-Forwarded-Proto를 http로 덮어써 OAuth redirect_uri가 http://로 만들어지고,
-		# 로그인 기록 IP도 ALB 주소로 남는다
-		trusted_proxies static private_ranges
-		client_ip_headers X-Forwarded-For
-	}
+	email {$ACME_EMAIL:admin@sunsetcoast.kr}
 }
 
 (security_headers) {
@@ -23,28 +15,18 @@
 }
 
 # 관리자 화면. 브라우저는 여기만 쓰고, 화면 서버가 /api/* 를 내부망의 api로 넘긴다
-http://admin.sunsetcoast.kr {
+admin.sunsetcoast.kr {
 	import security_headers
 	encode zstd gzip
 	reverse_proxy web:3000
 }
 
 # 일반 사용자용 API (sunsetcoast.kr). 공개 경로만 연다. 관리자 API는 여기서 닿지 않는다
-http://api.sunsetcoast.kr {
+api.sunsetcoast.kr {
 	import security_headers
 	encode zstd gzip
 	@user path /public/* /me/*
 	handle @user {
-		reverse_proxy api:8080
-	}
-	handle {
-		respond "Not Found" 404
-	}
-}
-
-# 그 밖의 Host (ALB 헬스체크는 Host에 인스턴스 IP를 넣어 보낸다). 헬스체크 경로만 응답한다
-:80 {
-	handle /public/health {
 		reverse_proxy api:8080
 	}
 	handle {
