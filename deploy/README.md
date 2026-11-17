@@ -208,6 +208,28 @@ docker stats --no-stream
 - **EC2 Instance Savings Plan, 1년, 선결제 없음, 서울 리전, t4g 계열**을 구매한다. 콘솔의 Savings Plans → 추천(Recommendations)이 사용량에 맞는 시간당 약정 금액을 계산해 준다
 - 같은 t4g 계열 안에서는 크기를 바꿔도(small ↔ medium) 할인이 적용된다
 
+## 9. DB 들여다보기 (DBeaver, SSH 터널)
+
+MySQL은 서버의 `127.0.0.1:3306`에만 열려 있다. 3306을 보안 그룹에 열지 않고 SSH 터널로 접속한다.
+
+1. 보안 그룹 인바운드: TCP 22, 소스 **내 IP** (IP가 바뀌면 다시 수정)
+2. 조회 전용 계정 (한 번). 서버에서:
+   ```bash
+   cd /opt/sunsetcoast/deploy
+   docker compose exec mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD"'
+   ```
+   ```sql
+   CREATE USER 'viewer'@'%' IDENTIFIED BY '<긴 비밀번호>';
+   GRANT SELECT, SHOW VIEW ON sunsetcoast.* TO 'viewer'@'%';
+   ```
+   (`%`여도 밖에서는 닿지 않는다. 터널로 들어온 접속은 Docker 내부망 주소로 보인다)
+3. DBeaver 새 연결 → MySQL
+   - Main: Host `127.0.0.1`, Port `3306`, Database `sunsetcoast`, User `viewer`
+   - Driver properties: `allowPublicKeyRetrieval=true`
+   - SSH: Use SSH Tunnel, Host `<탄력적 IP>`, Port 22, User `ubuntu`, Public Key → EC2 `.pem`
+
+데이터를 고칠 때는 화면이나 마이그레이션으로 한다. root/앱 계정으로 운영 DB를 직접 수정하지 않는다.
+
 ## 배포 전 확인 (DB 마이그레이션)
 
 - **기존 DB로 옮겨 오는 경우** V32(이메일 유니크) 전에 같은 이메일 계정이 없어야 한다:

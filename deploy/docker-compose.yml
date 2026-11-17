@@ -78,6 +78,9 @@ services:
       - --performance-schema=OFF
       # 바이너리 로그 끔 (복제 안 함, 백업은 mysqldump). 로그인 기록 트리거(V37)를 일반 계정으로 만들 수 있다
       - --skip-log-bin
+    # 서버 안(127.0.0.1)에만 연다. 밖에서는 SSH 터널로 접속한다 (README 9번). 0.0.0.0으로 바꾸지 말 것
+    ports:
+      - "127.0.0.1:3306:3306"
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
