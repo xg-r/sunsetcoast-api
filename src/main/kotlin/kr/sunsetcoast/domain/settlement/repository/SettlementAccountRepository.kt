@@ -6,4 +6,5 @@ import org.springframework.data.jpa.repository.JpaRepository
 
 interface SettlementAccountRepository : JpaRepository<SettlementAccountEntity, Long> {
     fun existsBySourceAndAccount(source: OtaPlatform, account: String): Boolean
+    fun findBySourceAndBusinessNumber(source: OtaPlatform, businessNumber: String): SettlementAccountEntity?
 }

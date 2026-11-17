@@ -9,6 +9,7 @@ import kr.sunsetcoast.domain.settlement.entity.SettlementWeekCheckEntity
 import kr.sunsetcoast.domain.settlement.repository.SettlementAccountRepository
 import kr.sunsetcoast.domain.settlement.repository.SettlementWeekCheckRepository
 import kr.sunsetcoast.domain.settlement.repository.SettlementLineRepository
+import kr.sunsetcoast.domain.settlement.vo.BusinessNumber
 import kr.sunsetcoast.domain.settlement.vo.DdnayoFileContent
 import kr.sunsetcoast.domain.settlement.vo.SettlementFileName
 import org.springframework.stereotype.Service
@@ -74,8 +75,7 @@ class SettlementCoverageService(
 
     /**
      * 떠나요에서 받은 그대로의 파일(`AdjustCalendar(…).xls`)은 파일명에 계정·정산일이 없어 파일 내용으로 채운다.
-     * 계정 이름은 같은 사업자번호의 이름 붙은 파일(`정산내역_{업소명}_…_떠나요.xls`)에서 가져오고,
-     * 그런 파일이 없으면 `사업자 {사업자번호}`로 둔다. 정산일은 파일명에서 읽은 것으로 치지 않는다.
+     * 계정 이름은 [ddnayoAccountName] 순서로 정한다. 정산일은 파일명에서 읽은 것으로 치지 않는다.
      */
     private fun withDdnayoContent(
         parsed: List<Pair<ImportBatchEntity, SettlementFileName>>,
@@ -86,15 +86,21 @@ class SettlementCoverageService(
         val rowsByBatch = importRowRepository.findByImportBatchIdIn(ddnayo.map { it.first.id!! })
             .groupBy({ it.importBatchId }, { jsonMapper.readValue(it.payload, PAYLOAD) })
         val contentByBatch = ddnayo.associate { (batch, _) -> batch.id!! to DdnayoFileContent.of(rowsByBatch[batch.id].orEmpty()) }
-        val accountByBusinessNumber = ddnayo
-            .mapNotNull { (batch, name) -> contentByBatch.getValue(batch.id!!).businessNumber?.let { number -> name.account?.let { number to it } } }
+        val registered = settlementAccountRepository.findAll()
+            .filter { it.source == OtaPlatform.DDNAYO }
+            .mapNotNull { account -> account.businessNumber?.let { it to account.account } }
+            .toMap()
+        val fromNamedFiles = ddnayo
+            .mapNotNull { (batch, name) ->
+                BusinessNumber.normalize(contentByBatch.getValue(batch.id!!).businessNumber)?.let { number -> name.account?.let { number to it } }
+            }
             .groupBy({ it.first }, { it.second })
             .mapValues { (_, names) -> names.groupingBy { it }.eachCount().maxBy { it.value }.key }
 
         return parsed.map { (batch, name) ->
             if (batch.source != OtaPlatform.DDNAYO || name.account != null) return@map batch to name
             val content = contentByBatch.getValue(batch.id!!)
-            val account = content.businessNumber?.let { accountByBusinessNumber[it] ?: "사업자 $it" }
+            val account = content.businessNumber?.let { ddnayoAccountName(it, registered, fromNamedFiles) }
             batch to SettlementFileName(account, null, content.issuedOn, content.settlementDates)
         }
     }
@@ -127,18 +133,45 @@ class SettlementCoverageService(
 
     /** 정산 계정 등록. 시작일은 그 주 월요일로 맞춘다 */
     @Transactional
-    fun addAccount(source: OtaPlatform, account: String, propertyId: Long?, startedOn: LocalDate): SettlementAccountEntity {
+    fun addAccount(
+        source: OtaPlatform,
+        account: String,
+        propertyId: Long?,
+        startedOn: LocalDate,
+        businessNumber: String? = null,
+    ): SettlementAccountEntity {
         val name = account.trim()
         require(name.isNotEmpty()) { "정산 계정 이름이 비어 있습니다." }
         require(!settlementAccountRepository.existsBySourceAndAccount(source, name)) { "이미 등록한 정산 계정입니다: $name" }
+        val number = checkedBusinessNumber(source, businessNumber, null)
         return settlementAccountRepository.save(
             SettlementAccountEntity(
                 source = source,
                 account = name,
                 propertyId = propertyId,
+                businessNumber = number,
                 startedOn = startedOn.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY)),
             ),
         )
+    }
+
+    /** 등록한 정산 계정의 사업자번호를 바꾼다. 빈 값이면 지운다 */
+    @Transactional
+    fun changeBusinessNumber(id: Long, businessNumber: String?): SettlementAccountEntity {
+        val entity = settlementAccountRepository.findById(id).orElseThrow { IllegalArgumentException("정산 계정이 없습니다: $id") }
+        entity.businessNumber = checkedBusinessNumber(entity.source, businessNumber, id)
+        return entity
+    }
+
+    /** 떠나요 계정만, 숫자 10자리, 다른 계정과 겹치지 않게 */
+    private fun checkedBusinessNumber(source: OtaPlatform, input: String?, selfId: Long?): String? {
+        if (input.isNullOrBlank()) return null
+        require(source == OtaPlatform.DDNAYO) { "사업자번호는 떠나요 정산 계정에만 지정합니다." }
+        val number = requireNotNull(BusinessNumber.normalize(input)) { "사업자번호는 숫자 10자리여야 합니다: $input" }
+        settlementAccountRepository.findBySourceAndBusinessNumber(source, number)?.let { other ->
+            require(other.id == selfId) { "사업자번호 ${BusinessNumber.format(number)}은(는) 이미 '${other.account}' 계정에 지정돼 있습니다." }
+        }
+        return number
     }
 
     @Transactional
@@ -149,3 +182,16 @@ class SettlementCoverageService(
 }
 
 private val PAYLOAD = object : TypeReference<Map<String, String?>>() {}
+
+/**
+ * 떠나요 원본 파일(AdjustCalendar)의 사업자번호로 정산 계정 이름을 정한다.
+ * 1. 이 사업자번호를 지정해 둔 등록 정산 계정
+ * 2. 같은 사업자번호가 든 이름 붙은 파일(`정산내역_{업소명}_…_떠나요.xls`)의 업소명
+ * 3. 둘 다 없으면 `사업자 {사업자번호}`
+ * @param registered 사업자번호(숫자 10자리) → 등록 계정 이름
+ * @param fromNamedFiles 사업자번호(숫자 10자리) → 이름 붙은 파일의 계정 이름
+ */
+internal fun ddnayoAccountName(fileBusinessNumber: String, registered: Map<String, String>, fromNamedFiles: Map<String, String>): String {
+    val number = BusinessNumber.normalize(fileBusinessNumber) ?: return "사업자 $fileBusinessNumber"
+    return registered[number] ?: fromNamedFiles[number] ?: "사업자 ${BusinessNumber.format(number)}"
+}
