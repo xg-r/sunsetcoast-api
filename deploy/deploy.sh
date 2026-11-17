@@ -19,11 +19,19 @@ git -C .. pull --ff-only --quiet
 
 # api가 뜨면서 DB 마이그레이션이 돌 수 있으니 배포 전에 백업한다 (화면만 바꿀 때는 생략)
 if [ "$#" -eq 0 ] || printf '%s\n' "$@" | grep -qx api; then
-  ./backup.sh
+  # 첫 배포처럼 mysql이 아직 떠 있지 않으면 덤프할 수 없으니 건너뛴다
+  if docker compose ps --status running --services | grep -qx mysql; then
+    ./backup.sh
+  else
+    echo "mysql이 떠 있지 않음: 백업 생략"
+  fi
 fi
 
 docker compose pull --quiet "$@"
 docker compose up -d --remove-orphans "$@"
+
+# 디스크가 작으니(12GB) 교체된 옛 이미지를 바로 지운다
+docker image prune -f
 
 # api가 다시 떴으면 정상 응답할 때까지 기다린다 (마이그레이션 포함 최대 3분)
 if [ "$#" -eq 0 ] || printf '%s\n' "$@" | grep -qx api; then

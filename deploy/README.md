@@ -19,7 +19,7 @@ sunsetcoast.kr → 지금처럼 S3 + CloudFront (이 서버와 무관)
 |---|---|---|
 | EC2 t4g.small (ARM, 2 vCPU, 2GB) | 약 $15/월 | 약 $9~10/월 |
 | 공인 IPv4 (탄력적 IP) | 약 $3.6/월 | 약 $3.6/월 |
-| EBS gp3 30GB + 주간 스냅샷 | 약 $3/월 | 약 $3/월 |
+| EBS gp3 12GB + 주간 스냅샷 | 약 $1.5/월 | 약 $1.5/월 |
 | S3 백업 (3일마다, 30일 보관) | 몇십 원 | 몇십 원 |
 
 정확한 금액은 [AWS 요금 계산기](https://calculator.aws/)로 확인한다. 로컬에서 같은 구성을 띄워 본 메모리 사용량: api 약 500MB, mysql 약 230MB, web 약 40MB, caddy 약 10MB.
@@ -29,7 +29,7 @@ sunsetcoast.kr → 지금처럼 S3 + CloudFront (이 서버와 무관)
 1. **EC2 인스턴스** (리전: 서울 `ap-northeast-2`)
    - AMI: Ubuntu Server 24.04 LTS (**arm64**)
    - 유형: `t4g.small`
-   - 스토리지: gp3 30GB
+   - 스토리지: gp3 12GB (기본값 8GB는 이미지 받다가 꽉 찬다)
    - 보안 그룹: 인바운드 TCP 80, 443, UDP 443 (0.0.0.0/0, ::/0). SSH 22는 사무실·집 IP만, 또는 열지 않고 Session Manager로 접속
 2. **IAM 역할** (인스턴스에 연결)
    - `AmazonSSMManagedInstanceCore` (Session Manager 접속, GitHub Actions 배포)
