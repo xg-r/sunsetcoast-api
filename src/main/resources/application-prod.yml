@@ -1,0 +1,25 @@
+# 운영 (EC2 + Docker Compose, Caddy가 HTTPS). 접속 정보·비밀값은 환경 변수로 (deploy/.env)
+#   SPRING_DATASOURCE_URL / SPRING_DATASOURCE_USERNAME / SPRING_DATASOURCE_PASSWORD
+#   NAVER_CLIENT_ID / NAVER_CLIENT_SECRET / KAKAO_CLIENT_ID / KAKAO_CLIENT_SECRET / AUTH_SUPER_ADMINS
+server:
+  servlet:
+    session:
+      cookie:
+        # 브라우저와는 HTTPS로만 통신한다 (Caddy가 TLS를 끝내고 X-Forwarded-Proto: https를 넘긴다)
+        secure: true
+
+spring:
+  jpa:
+    open-in-view: false
+    properties:
+      hibernate:
+        # DB(MySQL)도 Asia/Seoul. JVM도 같은 시간대 (Dockerfile -Duser.timezone)
+        jdbc:
+          time_zone: Asia/Seoul
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+
+logging:
+  level:
+    root: INFO

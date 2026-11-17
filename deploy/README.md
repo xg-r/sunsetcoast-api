@@ -1,0 +1,143 @@
+# 운영 배포 (AWS EC2 + Docker Compose)
+
+비용을 최소로: EC2 한 대에 Caddy(HTTPS) · 관리자 화면 · API · MySQL을 모두 올린다.
+
+```
+admin.sunsetcoast.kr ─┐                        ┌→ web (Next.js) ──(내부망 /api)──→ api
+                      ├→ EC2 ─ Caddy (80/443) ─┤
+api.sunsetcoast.kr  ──┘                        └→ api 의 /public/**, /me/** 만 ──→ api → mysql
+sunsetcoast.kr → 지금처럼 S3 + CloudFront (이 서버와 무관)
+```
+
+- 밖으로 열리는 것은 Caddy(80/443)뿐이다. web·api·mysql은 Docker 내부망에만 있다.
+- `api.sunsetcoast.kr`에서는 사용자용 경로(`/public/**`, `/me/**`)만 통과한다. 정산·관리비·계좌 같은 관리자 API는 404이고, 관리자 화면 서버를 거쳐서만 닿는다.
+- 이미지는 GitHub Actions가 `main`에 올라올 때마다 ARM용으로 빌드해 GHCR(`ghcr.io/xg-r/sunsetcoast-api`, `ghcr.io/xg-r/sunsetcoast-admin-web`)에 올린다. 서버는 받아서 실행만 한다.
+
+## 비용 (서울 리전, 대략)
+
+| 항목 | 온디맨드 | Savings Plan 1년 후 |
+|---|---|---|
+| EC2 t4g.small (ARM, 2 vCPU, 2GB) | 약 $15/월 | 약 $9~10/월 |
+| 공인 IPv4 (탄력적 IP) | 약 $3.6/월 | 약 $3.6/월 |
+| EBS gp3 30GB + 주간 스냅샷 | 약 $3/월 | 약 $3/월 |
+| S3 백업 (30일 보관) | 몇십 원 | 몇십 원 |
+
+정확한 금액은 [AWS 요금 계산기](https://calculator.aws/)로 확인한다. 로컬에서 같은 구성을 띄워 본 메모리 사용량: api 약 500MB, mysql 약 230MB, web 약 40MB, caddy 약 10MB.
+
+## 1. AWS 준비
+
+1. **EC2 인스턴스** (리전: 서울 `ap-northeast-2`)
+   - AMI: Ubuntu Server 24.04 LTS (**arm64**)
+   - 유형: `t4g.small`
+   - 스토리지: gp3 30GB
+   - 보안 그룹: 인바운드 TCP 80, 443, UDP 443 (0.0.0.0/0, ::/0). SSH 22는 사무실·집 IP만, 또는 열지 않고 Session Manager로 접속
+2. **IAM 역할** (인스턴스에 연결)
+   - `AmazonSSMManagedInstanceCore` (Session Manager 접속)
+   - 백업 버킷 경로에 쓰기만: `s3:PutObject` on `arn:aws:s3:::<버킷>/sunsetcoast-db/*`
+3. **탄력적 IP**를 만들어 인스턴스에 연결
+4. **DNS** (`sunsetcoast.kr`을 관리하는 곳, 예: Route 53): A 레코드 2개
+   - `admin.sunsetcoast.kr` → 탄력적 IP
+   - `api.sunsetcoast.kr` → 탄력적 IP
+5. **S3 백업 버킷**: 기존 버킷에 `sunsetcoast-db/` 경로를 쓰거나 새 버킷(퍼블릭 액세스 차단). 수명 주기 규칙: `sunsetcoast-db/` 아래 30일 뒤 삭제
+6. **EBS 스냅샷**: Data Lifecycle Manager로 주 1회, 4개 보관
+
+## 2. 서버 초기 설정 (한 번)
+
+```bash
+# 시간대, 스왑 2GB (메모리 2GB 서버 여유분)
+sudo timedatectl set-timezone Asia/Seoul
+sudo fallocate -l 2G /swapfile && sudo chmod 600 /swapfile && sudo mkswap /swapfile && sudo swapon /swapfile
+echo '/swapfile none swap sw 0 0' | sudo tee -a /etc/fstab
+
+# Docker, AWS CLI
+curl -fsSL https://get.docker.com | sudo sh
+sudo usermod -aG docker ubuntu   # 다시 로그인해야 적용
+sudo snap install aws-cli --classic
+
+# 배포 파일
+sudo mkdir -p /opt/sunsetcoast && sudo chown ubuntu:ubuntu /opt/sunsetcoast
+git clone https://github.com/xg-r/sunsetcoast-api.git /opt/sunsetcoast
+cd /opt/sunsetcoast/deploy
+cp .env.example .env && chmod 600 .env   # 값 채우기 (아래 3번)
+```
+
+## 3. 비밀값 (`deploy/.env`)
+
+`.env.example`의 항목을 채운다. git에 올리지 않는다 (`.gitignore`).
+
+- `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD`: `openssl rand -base64 24`로 만든 긴 값. **처음 띄운 뒤에는 바꾸지 않는다** (DB에 저장됨)
+- `NAVER_*`, `KAKAO_*`: 개발자센터의 운영 앱 키. Redirect URI 등록:
+  - `https://admin.sunsetcoast.kr/login/oauth2/code/naver`
+  - `https://admin.sunsetcoast.kr/login/oauth2/code/kakao`
+- `AUTH_SUPER_ADMINS`: 첫 슈퍼어드민 (`NAVER:이메일` 또는 `KAKAO:계정번호`)
+- `ACME_EMAIL`: HTTPS 인증서 만료 안내를 받을 이메일
+- `BACKUP_S3_URI`: `s3://<버킷>/sunsetcoast-db`
+
+## 4. 실행
+
+GHCR 이미지는 처음 빌드된 뒤 GitHub → 각 저장소 → Packages → 패키지 설정에서 **Public**으로 바꾼다 (공개 저장소라 이미지도 공개해도 된다. 비밀값은 이미지에 없다). 비공개로 두려면 서버에서 `docker login ghcr.io` (읽기 권한 토큰).
+
+```bash
+cd /opt/sunsetcoast/deploy
+docker compose pull
+docker compose up -d
+docker compose logs -f api   # "Successfully applied N migrations", "Started" 확인
+```
+
+확인:
+- https://api.sunsetcoast.kr/public/health → `{"status":"UP"}`
+- https://admin.sunsetcoast.kr → 로그인 화면, 네이버·카카오 로그인 후 슈퍼어드민 메뉴
+- https://api.sunsetcoast.kr/settlements/coverage → 404 (관리자 API는 밖에서 막힘)
+
+처음 띄울 때 Caddy가 인증서를 받는다. DNS가 이 서버를 가리키고 80·443이 열려 있어야 한다.
+
+## 5. 백업
+
+```bash
+# 매일 04:30 DB 덤프 → S3
+crontab -e
+30 4 * * * /opt/sunsetcoast/deploy/backup.sh >> /home/ubuntu/backup.log 2>&1
+```
+
+- 첫 실행은 직접: `./backup.sh` → S3에 `sunsetcoast-YYYYMMDD-HHMM.sql.gz`가 생기는지 확인
+- 덤프에는 테이블·데이터와 로그인 기록 보호 트리거가 함께 들어간다
+- **복구** (서비스를 멈추고):
+  ```bash
+  aws s3 cp s3://<버킷>/sunsetcoast-db/<파일>.sql.gz .
+  docker compose stop api
+  gunzip -c <파일>.sql.gz | docker compose exec -T mysql sh -c 'exec mysql -uroot -p"$MYSQL_ROOT_PASSWORD" sunsetcoast'
+  docker compose start api
+  ```
+
+## 6. 업데이트·되돌리기
+
+`main`에 머지하면 GitHub Actions가 테스트 후 이미지를 만든다 (Actions 탭에서 확인).
+
+```bash
+cd /opt/sunsetcoast && git pull          # deploy/ 파일이 바뀐 경우
+cd deploy && docker compose pull && docker compose up -d
+docker image prune -f                    # 안 쓰는 옛 이미지 정리
+```
+
+- DB 변경(Flyway 마이그레이션)은 api가 뜰 때 자동 적용된다. **배포 전에 백업을 한 번 떠 둔다** (`./backup.sh`)
+- 되돌리기: `.env`의 `API_TAG`/`WEB_TAG`를 이전 커밋 태그(`sha-xxxxxxx`, GHCR에서 확인)로 바꾸고 `docker compose up -d`. 이미 적용된 마이그레이션은 되돌아가지 않으니 DB가 바뀐 배포는 백업에서 복구한다
+
+## 7. Savings Plan (2~4주 뒤)
+
+처음부터 약정하지 않는다. 온디맨드로 2~4주 운영하며 메모리를 본다.
+
+```bash
+free -h                 # 스왑을 계속 많이 쓰면 메모리 부족
+docker stats --no-stream
+```
+
+- 넉넉하면 `t4g.small` 그대로, 부족하면 `t4g.medium`(4GB)으로 바꾼 뒤
+- **EC2 Instance Savings Plan, 1년, 선결제 없음, 서울 리전, t4g 계열**을 구매한다. 콘솔의 Savings Plans → 추천(Recommendations)이 사용량에 맞는 시간당 약정 금액을 계산해 준다
+- 같은 t4g 계열 안에서는 크기를 바꿔도(small ↔ medium) 할인이 적용된다
+
+## 배포 전 확인 (DB 마이그레이션)
+
+- **기존 DB로 옮겨 오는 경우** V32(이메일 유니크) 전에 같은 이메일 계정이 없어야 한다:
+  `SELECT email, COUNT(*) FROM users WHERE email IS NOT NULL GROUP BY email HAVING COUNT(*) > 1;`
+- V37(로그인 기록 트리거): 이 구성은 MySQL 바이너리 로그를 꺼 두어(`--skip-log-bin`) 일반 계정으로 트리거를 만들 수 있다. 바이너리 로그를 켜면 `log_bin_trust_function_creators=1`이 필요하다
+- 빈 DB로 시작하면 사업자·업소·객실·객실 별칭·관리비 단가는 마이그레이션이 넣는다. 그 뒤 정산 파일을 올리면 된다

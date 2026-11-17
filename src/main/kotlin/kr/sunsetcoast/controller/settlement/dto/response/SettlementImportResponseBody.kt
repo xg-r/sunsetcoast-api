@@ -1,5 +1,6 @@
 package kr.sunsetcoast.controller.settlement.dto.response
 
+import kr.sunsetcoast.common.response.AmountText
 import io.swagger.v3.oas.annotations.media.Schema
 import kr.sunsetcoast.domain.settlement.vo.SettlementImportResult
 
@@ -64,7 +65,8 @@ data class SettlementImportResponseBody(
     )
 
     companion object {
-        fun from(dryRun: Boolean, results: List<SettlementImportResult>) = SettlementImportResponseBody(
+        /** @param includeAmounts false면 안내 문구의 금액을 뺀다 (현장관리자) */
+        fun from(dryRun: Boolean, results: List<SettlementImportResult>, includeAmounts: Boolean = true) = SettlementImportResponseBody(
             dryRun = dryRun,
             files = results.map { r ->
                 FileResult(
@@ -80,7 +82,7 @@ data class SettlementImportResponseBody(
                     skippedRows = r.skippedRows,
                     unmappedRows = r.unmappedRows,
                     failedRows = r.failedRows,
-                    issues = r.issues.map { Issue(it.rowNo, it.result.name, it.message) },
+                    issues = r.issues.map { Issue(it.rowNo, it.result.name, if (includeAmounts) it.message else AmountText.redact(it.message)) },
                 )
             },
         )

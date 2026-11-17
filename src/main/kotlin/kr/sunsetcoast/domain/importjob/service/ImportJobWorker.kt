@@ -1,5 +1,6 @@
 package kr.sunsetcoast.domain.importjob.service
 
+import kr.sunsetcoast.common.response.AmountText
 import io.github.oshai.kotlinlogging.KotlinLogging
 import kr.sunsetcoast.domain.bank.service.BankStatementImportService
 import kr.sunsetcoast.domain.importjob.vo.BankJobResult
@@ -62,7 +63,7 @@ class ImportJobWorker(
                     } else {
                         val warning = if (result.failedRows > 0) {
                             "실패 ${result.failedRows}행: " + result.issues.filter { it.result.name == "FAILED" }.take(3)
-                                .joinToString(" / ") { "${it.rowNo}행 ${it.message.orEmpty()}" }
+                                .joinToString(" / ") { "${it.rowNo}행 ${AmountText.redact(it.message).orEmpty()}" }
                         } else {
                             null
                         }

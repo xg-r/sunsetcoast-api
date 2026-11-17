@@ -67,14 +67,14 @@ data class ReservationDetailResponseBody(
     }
 
     companion object {
-        /** @param includeManagementFees 관리비는 슈퍼어드민만 본다 */
-        fun from(detail: ReservationDetail, includeManagementFees: Boolean): ReservationDetailResponseBody {
-            val fees = if (includeManagementFees) detail.fees else emptyList()
+        /** @param includeAmounts 정산 행(금액)·관리비는 슈퍼어드민만 본다 */
+        fun from(detail: ReservationDetail, includeAmounts: Boolean): ReservationDetailResponseBody {
+            val fees = if (includeAmounts) detail.fees else emptyList()
             val fee = fees.takeIf { it.isNotEmpty() }?.fold(BigDecimal.ZERO) { sum, f -> sum + f.amount }
             val baseDate = detail.reservation.checkInDate ?: detail.lines.minOfOrNull { it.line.stayDate }
             return ReservationDetailResponseBody(
-                reservation = ReservationResponseBody.of(detail.reservation, detail.rooms, baseDate, fee),
-                lines = detail.lines.map { Line.from(it) },
+                reservation = ReservationResponseBody.of(detail.reservation, detail.rooms, baseDate, fee, includeAmounts),
+                lines = if (includeAmounts) detail.lines.map { Line.from(it) } else emptyList(),
                 managementFees = fees.map { ManagementFeeResponseBody.from(it) },
             )
         }

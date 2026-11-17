@@ -1,5 +1,6 @@
 package kr.sunsetcoast.controller.settlement.dto.response
 
+import kr.sunsetcoast.common.response.AmountText
 import io.swagger.v3.oas.annotations.media.Schema
 import kr.sunsetcoast.domain.settlement.service.UnmappedRowService
 import java.math.BigDecimal
@@ -40,7 +41,8 @@ data class UnmappedRowResponseBody(
     val uploadedAt: String,
 ) {
     companion object {
-        fun from(value: UnmappedRowService.UnmappedRow): UnmappedRowResponseBody {
+        /** @param includeAmounts 매출·정산금액은 슈퍼어드민만 본다 (현장관리자는 객실만 지정) */
+        fun from(value: UnmappedRowService.UnmappedRow, includeAmounts: Boolean): UnmappedRowResponseBody {
             val first = value.lines.firstOrNull()
             return UnmappedRowResponseBody(
                 id = value.row.id!!,
@@ -48,15 +50,15 @@ data class UnmappedRowResponseBody(
                 fileName = value.batch.fileName,
                 platform = value.batch.source.name,
                 rowNo = value.row.rowNo,
-                message = value.row.message,
+                message = if (includeAmounts) value.row.message else AmountText.redact(value.row.message),
                 roomName = first?.roomName,
                 reservationNumber = first?.reservationNumber,
                 bookerName = first?.bookerName,
                 stayDate = first?.stayDate?.toString(),
                 nights = first?.nights,
                 lineType = first?.lineType?.name,
-                grossAmount = value.lines.takeIf { it.isNotEmpty() }?.sumOf { it.amounts.gross },
-                netAmount = value.lines.takeIf { it.isNotEmpty() }?.sumOf { it.amounts.net },
+                grossAmount = value.lines.takeIf { includeAmounts && it.isNotEmpty() }?.sumOf { it.amounts.gross },
+                netAmount = value.lines.takeIf { includeAmounts && it.isNotEmpty() }?.sumOf { it.amounts.net },
                 suggestedRoomIds = value.suggestedRoomIds,
                 uploadedAt = value.batch.createdAt.withNano(0).toString(),
             )

@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 import org.springframework.web.HttpRequestMethodNotSupportedException
+import org.springframework.web.server.ResponseStatusException
 import org.springframework.web.servlet.resource.NoResourceFoundException
 
 private val logger = KotlinLogging.logger {}
@@ -78,6 +79,20 @@ class GlobalExceptionHandler {
         return ResponseEntity
             .status(HttpStatus.METHOD_NOT_ALLOWED)
             .body(ErrorResponse(exception = "HttpRequestMethodNotSupportedException", message = "이 주소에서는 할 수 없는 작업입니다 (${e.method})."))
+    }
+
+    /** 코드에서 일부러 정한 상태 코드 (예: 운영에서 꺼 둔 개발용 로그인 → 404). 500으로 감싸지 않는다 */
+    @ExceptionHandler(ResponseStatusException::class)
+    fun handleResponseStatus(e: ResponseStatusException): ResponseEntity<ErrorResponse> {
+        val status = HttpStatus.resolve(e.statusCode.value()) ?: HttpStatus.INTERNAL_SERVER_ERROR
+        logger.debug { "[ResponseStatus] ${e.statusCode} ${e.reason}" }
+        val message = e.reason ?: when (status) {
+            HttpStatus.NOT_FOUND -> "없는 주소입니다."
+            HttpStatus.UNAUTHORIZED -> "로그인이 필요합니다."
+            HttpStatus.FORBIDDEN -> "권한이 없습니다."
+            else -> status.reasonPhrase
+        }
+        return ResponseEntity.status(status).body(ErrorResponse(exception = "ResponseStatusException", message = message))
     }
 
     @ExceptionHandler(Exception::class)

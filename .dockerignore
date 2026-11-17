@@ -1,0 +1,9 @@
+.git
+.gradle
+.idea
+build
+docs
+deploy
+local-secrets.yml
+*.xlsx
+*.xls
