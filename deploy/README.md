@@ -20,7 +20,7 @@ sunsetcoast.kr → 지금처럼 S3 + CloudFront (이 서버와 무관)
 | EC2 t4g.small (ARM, 2 vCPU, 2GB) | 약 $15/월 | 약 $9~10/월 |
 | 공인 IPv4 (탄력적 IP) | 약 $3.6/월 | 약 $3.6/월 |
 | EBS gp3 30GB + 주간 스냅샷 | 약 $3/월 | 약 $3/월 |
-| S3 백업 (30일 보관) | 몇십 원 | 몇십 원 |
+| S3 백업 (3일마다, 30일 보관) | 몇십 원 | 몇십 원 |
 
 정확한 금액은 [AWS 요금 계산기](https://calculator.aws/)로 확인한다. 로컬에서 같은 구성을 띄워 본 메모리 사용량: api 약 500MB, mysql 약 230MB, web 약 40MB, caddy 약 10MB.
 
@@ -38,7 +38,7 @@ sunsetcoast.kr → 지금처럼 S3 + CloudFront (이 서버와 무관)
 4. **DNS** (`sunsetcoast.kr`을 관리하는 곳, 예: Route 53): A 레코드 2개
    - `admin.sunsetcoast.kr` → 탄력적 IP
    - `api.sunsetcoast.kr` → 탄력적 IP
-5. **S3 백업 버킷**: 기존 버킷에 `sunsetcoast-db/` 경로를 쓰거나 새 버킷(퍼블릭 액세스 차단). 수명 주기 규칙: `sunsetcoast-db/` 아래 30일 뒤 삭제
+5. **S3 백업 버킷**: 기존 버킷에 `sunsetcoast-db/` 경로를 쓰거나 새 버킷(퍼블릭 액세스 차단). 수명 주기 규칙: 접두사 `sunsetcoast-db/`, 현재 버전 객체 만료 30일 (버전 관리를 켰다면 이전 버전도 30일 뒤 영구 삭제)
 6. **EBS 스냅샷**: Data Lifecycle Manager로 주 1회, 4개 보관
 
 ## 2. 서버 초기 설정 (한 번)
@@ -95,11 +95,12 @@ docker compose logs -f api   # "Successfully applied N migrations", "Started" �
 ## 5. 백업
 
 ```bash
-# 매일 04:30 DB 덤프 → S3
+# 3일마다 04:30 DB 덤프 → S3 (매월 1·4·7…31일. 월말에는 간격이 1~2일로 짧아질 수 있다)
 crontab -e
-30 4 * * * /opt/sunsetcoast/deploy/backup.sh >> /home/ubuntu/backup.log 2>&1
+30 4 */3 * * /opt/sunsetcoast/deploy/backup.sh >> /home/ubuntu/backup.log 2>&1
 ```
 
+- 보관은 S3 수명 주기 규칙(30일)으로 정한다. 3일마다 + 배포 직전(`deploy.sh`) 덤프가 쌓여 최근 한 달 치 약 10개 이상이 남는다
 - 첫 실행은 직접: `./backup.sh` → S3에 `sunsetcoast-YYYYMMDD-HHMM.sql.gz`가 생기는지 확인
 - 덤프에는 테이블·데이터와 로그인 기록 보호 트리거가 함께 들어간다
 - **복구** (서비스를 멈추고):
