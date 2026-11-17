@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # 서버에 새 이미지를 반영한다. GitHub Actions가 SSM Run Command로 부르고, 손으로 실행해도 된다.
-#   ./deploy.sh           배포 파일(git) 갱신 → 백업 → 전체 pull·up
+#   ./deploy.sh           배포 파일(git) 갱신 → .env 갱신(Parameter Store) → 백업 → 전체 pull·up
 #   ./deploy.sh web       화면만 (web 저장소에서 부를 때)
 # 두 저장소의 배포가 동시에 와도 하나씩 돌도록 잠근다.
 set -euo pipefail
@@ -13,6 +13,9 @@ echo "== $(date) 배포 시작: ${*:-전체}"
 
 # deploy/ 파일(compose, Caddyfile)이 바뀌었을 수 있으니 먼저 받는다
 git -C .. pull --ff-only --quiet
+
+# 비밀값·설정을 Parameter Store에서 다시 받는다 (실패하면 기존 .env를 그대로 두고 배포 중단)
+./fetch-env.sh
 
 # api가 뜨면서 DB 마이그레이션이 돌 수 있으니 배포 전에 백업한다 (화면만 바꿀 때는 생략)
 if [ "$#" -eq 0 ] || printf '%s\n' "$@" | grep -qx api; then

@@ -33,7 +33,19 @@ sunsetcoast.kr → 지금처럼 S3 + CloudFront (이 서버와 무관)
    - 보안 그룹: 인바운드 TCP 80, 443, UDP 443 (0.0.0.0/0, ::/0). SSH 22는 사무실·집 IP만, 또는 열지 않고 Session Manager로 접속
 2. **IAM 역할** (인스턴스에 연결)
    - `AmazonSSMManagedInstanceCore` (Session Manager 접속, GitHub Actions 배포)
-   - 백업 버킷 경로에 쓰기만: `s3:PutObject` on `arn:aws:s3:::<버킷>/sunsetcoast-db/*`
+   - 인라인 정책: 백업 버킷 경로에 쓰기만 + 설정값(Parameter Store) 읽기만
+     ```json
+     {
+       "Version": "2012-10-17",
+       "Statement": [
+         { "Effect": "Allow", "Action": "s3:PutObject",
+           "Resource": "arn:aws:s3:::<버킷>/sunsetcoast-db/*" },
+         { "Effect": "Allow", "Action": "ssm:GetParametersByPath",
+           "Resource": "arn:aws:ssm:ap-northeast-2:<계정ID>:parameter/sunsetcoast/prod" }
+       ]
+     }
+     ```
+     SecureString은 AWS 관리 키 `aws/ssm`으로 암호화하면 KMS 권한을 따로 줄 필요가 없다
 3. **탄력적 IP**를 만들어 인스턴스에 연결
 4. **DNS** (`sunsetcoast.kr`을 관리하는 곳, 예: Route 53): A 레코드 2개
    - `admin.sunsetcoast.kr` → 탄력적 IP
@@ -58,20 +70,33 @@ sudo snap install aws-cli --classic
 sudo mkdir -p /opt/sunsetcoast && sudo chown ubuntu:ubuntu /opt/sunsetcoast
 git clone https://github.com/xg-r/sunsetcoast-api.git /opt/sunsetcoast
 cd /opt/sunsetcoast/deploy
-cp .env.example .env && chmod 600 .env   # 값 채우기 (아래 3번)
+./fetch-env.sh                           # Parameter Store → .env (아래 3번을 먼저 등록)
 ```
 
-## 3. 비밀값 (`deploy/.env`)
+## 3. 비밀값·설정 (SSM Parameter Store)
 
-`.env.example`의 항목을 채운다. git에 올리지 않는다 (`.gitignore`).
+서버의 `deploy/.env`는 손으로 만들지 않는다. **Systems Manager → Parameter Store**에 `/sunsetcoast/prod/<이름>`으로 등록하면 `fetch-env.sh`가 읽어서 만든다 (`deploy.sh`가 배포마다 다시 받음). 표준 파라미터·`aws/ssm` 키라 비용은 없다.
 
-- `MYSQL_ROOT_PASSWORD`, `MYSQL_PASSWORD`: `openssl rand -base64 24`로 만든 긴 값. **처음 띄운 뒤에는 바꾸지 않는다** (DB에 저장됨)
-- `NAVER_*`, `KAKAO_*`: 개발자센터의 운영 앱 키. Redirect URI 등록:
+파라미터 생성: 이름 `/sunsetcoast/prod/MYSQL_PASSWORD`, 계층 **표준**, 유형은 아래 표, KMS 키 소스 **내 현재 계정** · `alias/aws/ssm`, 값 입력.
+
+| 이름 | 유형 | 값 |
+|---|---|---|
+| `MYSQL_ROOT_PASSWORD` | SecureString | `openssl rand -base64 24`. **처음 띄운 뒤에는 바꾸지 않는다** (DB에 저장됨) |
+| `MYSQL_PASSWORD` | SecureString | 위와 같이 따로 생성. 처음 띄운 뒤 바꾸지 않는다 |
+| `NAVER_CLIENT_ID` | String | 네이버 개발자센터 운영 앱 |
+| `NAVER_CLIENT_SECRET` | SecureString | 〃 |
+| `KAKAO_CLIENT_ID` | String | 카카오 개발자센터 운영 앱 (REST API 키) |
+| `KAKAO_CLIENT_SECRET` | SecureString | 〃 |
+| `AUTH_SUPER_ADMINS` | String | 첫 슈퍼어드민 (`NAVER:이메일` 또는 `KAKAO:계정번호`, 쉼표로 여러 개) |
+| `ACME_EMAIL` | String | HTTPS 인증서 만료 안내를 받을 이메일 |
+| `BACKUP_S3_URI` | String | `s3://<버킷>/sunsetcoast-db` |
+| `API_TAG`, `WEB_TAG` | String | (선택) 없으면 `latest`. 되돌릴 때만 만든다 (6번) |
+
+- 값에 작은따옴표(`'`)는 쓰지 않는다. 필수 값이 하나라도 없으면 `fetch-env.sh`가 실패하고 기존 `.env`를 그대로 둔다
+- 값을 바꾼 뒤에는 `deploy.sh`로 다시 배포해야 반영된다
+- 네이버·카카오 Redirect URI 등록:
   - `https://admin.sunsetcoast.kr/login/oauth2/code/naver`
   - `https://admin.sunsetcoast.kr/login/oauth2/code/kakao`
-- `AUTH_SUPER_ADMINS`: 첫 슈퍼어드민 (`NAVER:이메일` 또는 `KAKAO:계정번호`)
-- `ACME_EMAIL`: HTTPS 인증서 만료 안내를 받을 이메일
-- `BACKUP_S3_URI`: `s3://<버킷>/sunsetcoast-db`
 
 ## 4. 실행
 
@@ -122,7 +147,7 @@ crontab -e
 ```
 
 - DB 변경(Flyway 마이그레이션)은 api가 뜰 때 자동 적용된다. `deploy.sh`가 api를 바꾸기 전에 백업을 뜬다
-- 되돌리기: `.env`의 `API_TAG`/`WEB_TAG`를 이전 커밋 태그(`sha-xxxxxxx`, GHCR에서 확인)로 바꾸고 `docker compose up -d`. 이미 적용된 마이그레이션은 되돌아가지 않으니 DB가 바뀐 배포는 백업에서 복구한다
+- 되돌리기: Parameter Store에 `/sunsetcoast/prod/API_TAG`(또는 `WEB_TAG`)를 이전 커밋 태그(`sha-xxxxxxx`, GHCR에서 확인)로 만들고 `deploy.sh`. 다시 최신으로 갈 때는 그 파라미터를 지운다 (`.env`를 직접 고쳐도 다음 배포 때 덮어쓴다). 이미 적용된 마이그레이션은 되돌아가지 않으니 DB가 바뀐 배포는 백업에서 복구한다
 
 ## 7. GitHub Actions 자동 배포 (SSM, 한 번 설정)
 
