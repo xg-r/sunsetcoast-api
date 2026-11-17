@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# 매일 DB를 덤프해서 S3에 올린다. cron 예: 30 4 * * * /opt/sunsetcoast/deploy/backup.sh >> /var/log/sunsetcoast-backup.log 2>&1
-# 보관 기간은 S3 수명 주기 규칙으로 정한다 (예: 30일 뒤 삭제). EC2 IAM 역할에 그 경로 s3:PutObject 권한이 필요하다
+# 3일마다 DB를 덤프해서 S3에 올린다. cron 예: 30 4 */3 * * /opt/sunsetcoast/deploy/backup.sh >> /var/log/sunsetcoast-backup.log 2>&1
+# 보관 기간은 S3 수명 주기 규칙으로 정한다 (30일 뒤 삭제). EC2 IAM 역할에 그 경로 s3:PutObject 권한이 필요하다
 set -euo pipefail
 cd "$(dirname "$0")"
 set -a; source ./.env; set +a
