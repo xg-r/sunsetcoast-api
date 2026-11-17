@@ -1,6 +1,6 @@
-# 운영: EC2 한 대 (t4g.small, ARM). 밖으로는 Caddy(80/443)만 열고 web·api·mysql은 내부망에만 둔다.
-#   admin.sunsetcoast.kr → Caddy → web(Next.js) → (내부망) api
-#   api.sunsetcoast.kr   → Caddy → api 의 /public/**, /me/** 만 (관리자 API는 밖에서 닿지 않음)
+# 운영: ALB(HTTPS, ACM) → EC2 한 대 (t4g.small, ARM). 서버는 Caddy의 80만 열고(보안 그룹: ALB에서만) web·api·mysql은 내부망에만 둔다.
+#   admin.sunsetcoast.kr → ALB → Caddy → web(Next.js) → (내부망) api
+#   api.sunsetcoast.kr   → ALB → Caddy → api 의 /public/**, /me/** 만 (관리자 API는 밖에서 닿지 않음)
 # 사용: deploy 폴더에서 `docker compose pull && docker compose up -d` (비밀값은 같은 폴더의 .env)
 name: sunsetcoast
 
@@ -16,10 +16,6 @@ services:
     restart: unless-stopped
     ports:
       - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    environment:
-      ACME_EMAIL: ${ACME_EMAIL}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy-data:/data

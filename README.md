@@ -132,7 +132,7 @@ curl -X POST -H "X-API-Version: 1.0" "http://localhost:8080/auth/dev-login?role=
 
 ## 보안·개인정보
 
-- **백엔드를 인터넷에 직접 열지 않습니다.** Caddy(리버스 프록시)와 관리자 화면을 통해서만 받습니다 ([`deploy/`](deploy/README.md)). OAuth redirect URI를 화면 주소로 만들기 위해 `X-Forwarded-*` 헤더를 믿기 때문입니다 (`server.forward-headers-strategy: framework`).
+- **백엔드를 인터넷에 직접 열지 않습니다.** ALB(HTTPS) → Caddy(리버스 프록시)와 관리자 화면을 통해서만 받습니다 ([`deploy/`](deploy/README.md)). OAuth redirect URI를 화면 주소로 만들기 위해 `X-Forwarded-*` 헤더를 믿기 때문입니다 (`server.forward-headers-strategy: framework`).
 - **플랫폼 정산 원본 파일·계좌 거래내역은 git에 올리지 않습니다** (고객 이름·연락처, 계좌 정보). `docs` 아래 원본 파일은 `.gitignore`로 제외됩니다. 코드·테스트에도 실제 계좌번호·이메일·실명을 넣지 않습니다.
 - 로그인 기록은 조회만 됩니다. DB 트리거가 수정과 1년이 안 된 기록의 삭제를 막고, 1년 지난 기록은 매일 자동으로 지웁니다.
 
