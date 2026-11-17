@@ -30,7 +30,7 @@ sunsetcoast.kr → 지금처럼 S3 + CloudFront (이 서버와 무관)
    - AMI: Ubuntu Server 24.04 LTS (**arm64**)
    - 유형: `t4g.small`
    - 스토리지: gp3 12GB (기본값 8GB는 이미지 받다가 꽉 찬다)
-   - 보안 그룹: 인바운드 TCP 80, 443, UDP 443 (0.0.0.0/0, ::/0). SSH 22는 사무실·집 IP만, 또는 열지 않고 Session Manager로 접속
+   - 보안 그룹: 인바운드 TCP 80, 443, UDP 443 (0.0.0.0/0, ::/0). SSH 22는 사무실·집 IP만, 또는 열지 않고 Session Manager로 접속. MySQL 3306도 사무실·집 IP만 (9번)
 2. **IAM 역할** (인스턴스에 연결)
    - `AmazonSSMManagedInstanceCore` (Session Manager 접속, GitHub Actions 배포)
    - 인라인 정책: 백업 버킷 경로에 쓰기만 + 설정값(Parameter Store) 읽기만
@@ -208,27 +208,29 @@ docker stats --no-stream
 - **EC2 Instance Savings Plan, 1년, 선결제 없음, 서울 리전, t4g 계열**을 구매한다. 콘솔의 Savings Plans → 추천(Recommendations)이 사용량에 맞는 시간당 약정 금액을 계산해 준다
 - 같은 t4g 계열 안에서는 크기를 바꿔도(small ↔ medium) 할인이 적용된다
 
-## 9. DB 들여다보기 (DBeaver, SSH 터널)
+## 9. DB 들여다보기 (DBeaver)
 
-MySQL은 서버의 `127.0.0.1:3306`에만 열려 있다. 3306을 보안 그룹에 열지 않고 SSH 터널로 접속한다.
+MySQL은 서버의 3306에 열려 있고, **보안 그룹이 내 IP만 들여보낸다**. 3306을 `0.0.0.0/0`으로 열지 않는다 (인터넷 전체가 비밀번호를 두드리게 된다).
 
-1. 보안 그룹 인바운드: TCP 22, 소스 **내 IP** (IP가 바뀌면 다시 수정)
-2. 조회 전용 계정 (한 번). 서버에서:
+1. 보안 그룹 인바운드: TCP 3306, 소스 **내 IP** (사무실·집 각각 한 줄, IP가 바뀌면 다시 수정)
+2. (선택) DNS A 레코드 `db.sunsetcoast.kr` → 탄력적 IP. 주소만 바뀌는 것이고 막는 것은 여전히 보안 그룹이다
+3. 조회 전용 계정 (한 번). 서버에서:
    ```bash
    cd /opt/sunsetcoast/deploy
    docker compose exec mysql sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD"'
    ```
    ```sql
-   CREATE USER 'viewer'@'%' IDENTIFIED BY '<긴 비밀번호>';
+   CREATE USER 'viewer'@'%' IDENTIFIED BY '<긴 비밀번호>' REQUIRE SSL;
    GRANT SELECT, SHOW VIEW ON sunsetcoast.* TO 'viewer'@'%';
    ```
-   (`%`여도 밖에서는 닿지 않는다. 터널로 들어온 접속은 Docker 내부망 주소로 보인다)
-3. DBeaver 새 연결 → MySQL
-   - Main: Host `127.0.0.1`, Port `3306`, Database `sunsetcoast`, User `viewer`
-   - Driver properties: `allowPublicKeyRetrieval=true`
-   - SSH: Use SSH Tunnel, Host `<탄력적 IP>`, Port 22, User `ubuntu`, Public Key → EC2 `.pem`
+   이미 만든 계정이면 `ALTER USER 'viewer'@'%' REQUIRE SSL;`. 비밀번호가 평문으로 인터넷을 지나가지 않게 SSL을 강제한다 (MySQL이 자체 인증서를 만들어 둔다)
+4. DBeaver 새 연결 → MySQL
+   - Main: Host `db.sunsetcoast.kr` (또는 탄력적 IP), Port `3306`, Database `sunsetcoast`, User `viewer`
+   - SSL: Use SSL 체크, Verify server certificate 해제 (자체 서명 인증서)
+   - SSH 탭은 쓰지 않는다
+   - URL로 넣는다면: `jdbc:mysql://db.sunsetcoast.kr:3306/sunsetcoast?sslMode=REQUIRED`
 
-데이터를 고칠 때는 화면이나 마이그레이션으로 한다. root/앱 계정으로 운영 DB를 직접 수정하지 않는다.
+`root`·`sunsetcoast`(앱) 계정은 밖에서 쓰지 않는다. 데이터를 고칠 때는 화면이나 마이그레이션으로 한다.
 
 ## 배포 전 확인 (DB 마이그레이션)
 
