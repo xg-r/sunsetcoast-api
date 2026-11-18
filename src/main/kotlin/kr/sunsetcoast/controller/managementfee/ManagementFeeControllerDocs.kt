@@ -3,6 +3,7 @@ package kr.sunsetcoast.controller.managementfee
 import io.swagger.v3.oas.annotations.Operation
 import io.swagger.v3.oas.annotations.Parameter
 import io.swagger.v3.oas.annotations.tags.Tag
+import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeeExtrasRequestBody
 import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeeOverrideRequestBody
 import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeePaymentRequestBody
 import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeeVerificationRequestBody
@@ -17,6 +18,7 @@ interface ManagementFeeControllerDocs {
     @Operation(
         summary = "월별 관리비 조회",
         description = "입실일이 그 달에 속한 예약의 관리비. 예약번호의 객실마다 1회(박수 무관), 취소는 0원. " +
+            "행마다 추가요금과 그 객실의 매출(판매가·정산금액)을 같이 준다. " +
             "업소나 사업자로 좁힐 수 있다. 사업자로 보면 그 사업자 명의 객실만 업소와 상관없이 모은다 (사업자별 지급).",
     )
     fun getMonthly(
@@ -24,6 +26,17 @@ interface ManagementFeeControllerDocs {
         @Parameter(description = "사업자 ID (생략하면 전체)", example = "1") businessOwnerId: Long?,
         @Parameter(description = "입실 월 (yyyy-MM)", example = "2026-08") month: YearMonth,
     ): MonthlyManagementFeeResponseBody
+
+    @Operation(
+        summary = "관리비 추가요금 저장",
+        description = "손님이 현장에 낼 추가요금(바베큐, 추가인원 등)을 숙박비와 함께 우리 계좌로 보낸 경우, 관리비와 함께 현장에 이체할 금액으로 적는다. " +
+            "보낸 목록으로 통째로 바꾸고 빈 목록이면 모두 지운다. 금액 = 단가 × 수량 × 박수(추가인원만, 생략하면 예약 박수). " +
+            "지급액(payableAmount) = 관리비 + 추가요금이 되어, 확인한 뒤 바꾸면 '다시 확인'이 된다. 입금 완료된 관리비는 바꿀 수 없다.",
+    )
+    fun replaceExtras(
+        @Parameter(description = "관리비 ID", example = "12") id: Long,
+        body: ManagementFeeExtrasRequestBody,
+    ): ManagementFeeResponseBody
 
     @Operation(
         summary = "관리비 수정",
@@ -44,7 +57,7 @@ interface ManagementFeeControllerDocs {
 
     @Operation(
         summary = "월별 관리비 입금 내역",
-        description = "입금 완료된 관리비만, 객실 명의 사업자 × 월로 모은다 (금액은 입금 완료로 표시할 때의 지급액). " +
+        description = "입금 완료된 관리비만, 객실 명의 사업자 × 월로 모은다 (금액은 입금 완료로 표시할 때의 지급액 = 관리비 + 추가요금). " +
             "basis=FEE_MONTH면 입실 월, PAID_MONTH면 입금 완료로 표시한 달 기준. 최대 36개월.",
     )
     fun getPaidSummary(

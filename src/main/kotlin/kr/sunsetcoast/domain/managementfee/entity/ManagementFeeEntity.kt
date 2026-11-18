@@ -1,5 +1,6 @@
 package kr.sunsetcoast.domain.managementfee.entity
 
+import jakarta.persistence.CascadeType
 import jakarta.persistence.Column
 import jakarta.persistence.Entity
 import jakarta.persistence.EnumType
@@ -10,10 +11,13 @@ import jakarta.persistence.GenerationType
 import jakarta.persistence.Id
 import jakarta.persistence.JoinColumn
 import jakarta.persistence.ManyToOne
+import jakarta.persistence.OneToMany
 import jakarta.persistence.Table
 import jakarta.persistence.UniqueConstraint
 import kr.sunsetcoast.domain.managementfee.vo.FeeDecision
 import kr.sunsetcoast.domain.managementfee.vo.ManagementFeeBasis
+import kr.sunsetcoast.domain.managementfee.vo.ManagementFeeExtraInput
+import org.hibernate.annotations.BatchSize
 import kr.sunsetcoast.domain.reservation.entity.ReservationEntity
 import kr.sunsetcoast.domain.room.entity.RoomEntity
 import java.math.BigDecimal
@@ -88,23 +92,35 @@ class ManagementFeeEntity(
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     val id: Long? = null,
 ) {
-    /** 실제 지급액 */
+    /** 관리비와 함께 현장에 넘겨 줄 추가요금 (바베큐, 추가인원 등) */
+    // 응답마다 쓰고 open-in-view가 꺼져 있어 바로 읽는다. 여러 관리비는 BatchSize로 한 번에
+    @OneToMany(mappedBy = "fee", cascade = [CascadeType.ALL], orphanRemoval = true, fetch = FetchType.EAGER)
+    @BatchSize(size = 200)
+    val extras: MutableList<ManagementFeeExtraEntity> = mutableListOf()
+
+    /** 관리비 (수정 금액이 있으면 수정 금액). 추가요금은 빠져 있다 */
     val amount: BigDecimal get() = overrideAmount ?: calculatedAmount
+
+    /** 추가요금 합계 */
+    val extraAmount: BigDecimal get() = extras.fold(BigDecimal.ZERO) { sum, e -> sum + e.amount }
+
+    /** 현장에 이체할 금액 = 관리비 + 추가요금. 입금 완료·확인은 이 금액으로 한다 */
+    val payableAmount: BigDecimal get() = amount + extraAmount
 
     val paid: Boolean get() = paidAt != null
 
-    /** 입금 완료 뒤 업로드·재계산·수정으로 지급액이 달라졌는지 */
-    val amountChangedAfterPayment: Boolean get() = paidAmount?.let { it.compareTo(amount) != 0 } == true
+    /** 입금 완료 뒤 업로드·재계산·수정으로 지급액(관리비 + 추가요금)이 달라졌는지 */
+    val amountChangedAfterPayment: Boolean get() = paidAmount?.let { it.compareTo(payableAmount) != 0 } == true
 
     val verified: Boolean get() = verifiedAt != null
 
-    /** 확인한 뒤 지급액이 바뀌었는지 (다시 확인해야 함) */
-    val amountChangedAfterVerification: Boolean get() = verifiedAmount?.let { it.compareTo(amount) != 0 } == true
+    /** 확인한 뒤 지급액(관리비 + 추가요금)이 바뀌었는지 (다시 확인해야 함) */
+    val amountChangedAfterVerification: Boolean get() = verifiedAmount?.let { it.compareTo(payableAmount) != 0 } == true
 
     /** 지금 금액으로 확인. 금액이 바뀐 뒤 다시 확인할 때도 쓴다 */
     fun verify(userId: Long?) {
         verifiedAt = LocalDateTime.now()
-        verifiedAmount = amount
+        verifiedAmount = payableAmount
         verifiedBy = userId
         updatedAt = LocalDateTime.now()
     }
@@ -117,9 +133,9 @@ class ManagementFeeEntity(
     }
 
     fun markPaid(userId: Long?) {
-        require(amount.signum() > 0) { "지급액이 0원인 관리비는 입금 완료로 표시할 수 없습니다: $id" }
+        require(payableAmount.signum() > 0) { "지급액이 0원인 관리비는 입금 완료로 표시할 수 없습니다: $id" }
         paidAt = LocalDateTime.now()
-        paidAmount = amount
+        paidAmount = payableAmount
         paidBy = userId
         updatedAt = LocalDateTime.now()
     }
@@ -145,6 +161,30 @@ class ManagementFeeEntity(
         overrideAmount = amount
         overrideReason = reason.trim()
         overriddenAt = LocalDateTime.now()
+        updatedAt = LocalDateTime.now()
+    }
+
+    /**
+     * 추가요금을 통째로 바꾼다 (화면에서 목록을 편집해 저장). 빈 목록이면 모두 지운다.
+     * 박수를 따로 주지 않은 1박 단위 요금은 예약 박수로 계산한다.
+     */
+    fun replaceExtras(inputs: List<ManagementFeeExtraInput>) {
+        check(!paid) { "입금 완료된 관리비는 추가요금을 고칠 수 없습니다. 입금 완료를 취소한 뒤 고쳐 주세요." }
+        extras.clear()
+        inputs.forEach { input ->
+            val line = input.resolve(defaultNights = reservation.nights)
+            extras.add(
+                ManagementFeeExtraEntity(
+                    fee = this,
+                    item = input.item,
+                    unitPrice = line.unitPrice,
+                    quantity = input.quantity,
+                    nights = line.nights,
+                    amount = line.amount,
+                    memo = input.memo?.trim()?.ifEmpty { null },
+                )
+            )
+        }
         updatedAt = LocalDateTime.now()
     }
 

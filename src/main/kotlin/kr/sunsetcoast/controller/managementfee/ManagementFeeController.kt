@@ -1,6 +1,7 @@
 package kr.sunsetcoast.controller.managementfee
 
 import kr.sunsetcoast.config.security.CurrentUser
+import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeeExtrasRequestBody
 import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeeOverrideRequestBody
 import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeePaymentRequestBody
 import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeeVerificationRequestBody
@@ -30,13 +31,19 @@ class ManagementFeeController(
         @RequestParam(required = false) propertyId: Long?,
         @RequestParam(required = false) businessOwnerId: Long?,
         @RequestParam @DateTimeFormat(pattern = "yyyy-MM") month: YearMonth,
-    ): MonthlyManagementFeeResponseBody =
-        MonthlyManagementFeeResponseBody.from(
-            propertyId,
-            businessOwnerId,
-            month,
-            managementFeeService.findMonthly(propertyId, businessOwnerId, month),
-        )
+    ): MonthlyManagementFeeResponseBody {
+        val fees = managementFeeService.findMonthly(propertyId, businessOwnerId, month)
+        return MonthlyManagementFeeResponseBody.from(propertyId, businessOwnerId, month, fees, managementFeeService.revenueOf(fees))
+    }
+
+    @PutMapping("/{id}/extras", version = "1.0")
+    override fun replaceExtras(
+        @PathVariable id: Long,
+        @RequestBody body: ManagementFeeExtrasRequestBody,
+    ): ManagementFeeResponseBody {
+        val fee = managementFeeService.replaceExtras(id, body.extras.map { it.toInput() })
+        return ManagementFeeResponseBody.from(fee, managementFeeService.revenueOf(listOf(fee))[fee.id])
+    }
 
     @PutMapping("/{id}", version = "1.0")
     override fun override(
