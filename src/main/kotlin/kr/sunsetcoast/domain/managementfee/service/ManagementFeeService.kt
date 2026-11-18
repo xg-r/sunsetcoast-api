@@ -5,11 +5,13 @@ import kr.sunsetcoast.domain.managementfee.entity.ManagementFeeEntity
 import kr.sunsetcoast.domain.managementfee.repository.ManagementFeeRateRepository
 import kr.sunsetcoast.domain.managementfee.repository.ManagementFeeRepository
 import kr.sunsetcoast.domain.managementfee.vo.FeeStay
+import kr.sunsetcoast.domain.managementfee.vo.ManagementFeeExtraInput
 import kr.sunsetcoast.domain.managementfee.vo.ManagementFeeRules
 import kr.sunsetcoast.domain.reservation.entity.ReservationEntity
 import kr.sunsetcoast.domain.reservation.repository.ReservationRepository
 import kr.sunsetcoast.domain.reservation.repository.ReservationRoomRepository
 import kr.sunsetcoast.domain.reservation.vo.ReservationStatus
+import kr.sunsetcoast.domain.settlement.repository.SettlementLineRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.math.BigDecimal
@@ -27,6 +29,7 @@ class ManagementFeeService(
     private val managementFeeRepository: ManagementFeeRepository,
     private val managementFeeRateRepository: ManagementFeeRateRepository,
     private val reservationRoomRepository: ReservationRoomRepository,
+    private val settlementLineRepository: SettlementLineRepository,
 ) {
     /** 바뀐 예약의 관리비를 다시 계산한다. (정산 파일 업로드 후 호출) */
     @Transactional
@@ -47,6 +50,45 @@ class ManagementFeeService(
         managementFeeRepository
             .findByCheckInBetween(propertyId, businessOwnerId, month.atDay(1), month.atEndOfMonth())
             .sortedWith(compareBy({ it.reservation.checkInDate }, { it.room.id }, { it.reservation.id }))
+
+    /** 관리비 행의 매출. gross: 판매가 합계, net: 플랫폼 수수료를 뺀 정산금액 합계 */
+    data class FeeRevenue(val gross: BigDecimal, val net: BigDecimal)
+
+    /**
+     * 관리비 행(예약 × 객실)마다 매출. 정산 행은 객실별로 있어서 그 객실 몫만 더한다 (취소수수료 포함).
+     * 정산 행이 없는 예약(예약 파일로만 들어온 예약)은 객실이 하나일 때만 예약 합계를 쓰고, 여러 객실이면 모른다(null).
+     */
+    @Transactional(readOnly = true)
+    fun revenueOf(fees: Collection<ManagementFeeEntity>): Map<Long, FeeRevenue> {
+        if (fees.isEmpty()) return emptyMap()
+        val reservationIds = fees.map { it.reservation.id!! }.toSet()
+        val lines = settlementLineRepository.findByReservationIdIn(reservationIds)
+        val byRoom = lines.groupBy { it.reservation.id!! to it.room.id!! }
+        val withLines = lines.map { it.reservation.id!! }.toSet()
+        val roomCount = fees.groupingBy { it.reservation.id!! }.eachCount()
+        return fees.mapNotNull { fee ->
+            val reservation = fee.reservation
+            val revenue = when {
+                reservation.id in withLines -> byRoom[reservation.id!! to fee.room.id!!].orEmpty().let { list ->
+                    FeeRevenue(list.sumOf { it.grossAmount }, list.sumOf { it.netAmount })
+                }
+                roomCount[reservation.id] == 1 -> FeeRevenue(reservation.grossAmount, reservation.netAmount)
+                else -> null
+            }
+            revenue?.let { fee.id!! to it }
+        }.toMap()
+    }
+
+    /** 추가요금을 통째로 바꾼다. 빈 목록이면 모두 지운다. 입금 완료된 관리비는 바꿀 수 없다 */
+    @Transactional
+    fun replaceExtras(feeId: Long, inputs: List<ManagementFeeExtraInput>): ManagementFeeEntity {
+        val fee = managementFeeRepository.findById(feeId)
+            .orElseThrow { IllegalArgumentException("관리비를 찾을 수 없습니다: $feeId") }
+        fee.replaceExtras(inputs)
+        managementFeeRepository.flush()
+        logger.info { "management fee extras replaced id=$feeId extras=${inputs.size} total=${fee.extraAmount}" }
+        return fee
+    }
 
     /** 관리자가 금액을 고친다. amount가 null이면 수정을 취소하고 자동 계산값으로 돌아간다. */
     @Transactional
