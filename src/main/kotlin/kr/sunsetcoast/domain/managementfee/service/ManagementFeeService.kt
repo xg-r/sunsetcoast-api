@@ -11,6 +11,7 @@ import kr.sunsetcoast.domain.reservation.entity.ReservationEntity
 import kr.sunsetcoast.domain.reservation.repository.ReservationRepository
 import kr.sunsetcoast.domain.reservation.repository.ReservationRoomRepository
 import kr.sunsetcoast.domain.reservation.vo.ReservationStatus
+import kr.sunsetcoast.domain.room.repository.RoomRepository
 import kr.sunsetcoast.domain.settlement.repository.SettlementLineRepository
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
@@ -30,6 +31,7 @@ class ManagementFeeService(
     private val managementFeeRateRepository: ManagementFeeRateRepository,
     private val reservationRoomRepository: ReservationRoomRepository,
     private val settlementLineRepository: SettlementLineRepository,
+    private val roomRepository: RoomRepository,
 ) {
     /** 바뀐 예약의 관리비를 다시 계산한다. (정산 파일 업로드 후 호출) */
     @Transactional
@@ -75,8 +77,30 @@ class ManagementFeeService(
                 roomCount[reservation.id] == 1 -> FeeRevenue(reservation.grossAmount, reservation.netAmount)
                 else -> null
             }
-            revenue?.let { fee.id!! to it }
+            // 현장 객실 변경 차액은 우리 계좌로 받은 매출 (플랫폼 수수료 없음)
+            val difference = fee.roomChangeDifference ?: BigDecimal.ZERO
+            revenue?.let { fee.id!! to FeeRevenue(it.gross + difference, it.net + difference) }
         }.toMap()
+    }
+
+    /**
+     * 현장 객실 변경. 관리비를 옮긴 객실 단가로 다시 계산하고, 받은 차액은 매출에 더한다.
+     * toRoomId가 null이거나 예약한 객실이면 변경을 취소한다.
+     */
+    @Transactional
+    fun changeRoom(feeId: Long, toRoomId: Long?, difference: BigDecimal?, memo: String?): ManagementFeeEntity {
+        val fee = managementFeeRepository.findById(feeId)
+            .orElseThrow { IllegalArgumentException("관리비를 찾을 수 없습니다: $feeId") }
+        if (toRoomId == null || toRoomId == fee.room.id) {
+            fee.clearRoomChange()
+        } else {
+            val to = roomRepository.findById(toRoomId).orElseThrow { IllegalArgumentException("객실을 찾을 수 없습니다: $toRoomId") }
+            fee.changeRoom(to, difference, memo)
+        }
+        recalculate(listOf(fee.reservation))
+        managementFeeRepository.flush()
+        logger.info { "management fee room change id=$feeId to=$toRoomId difference=$difference" }
+        return fee
     }
 
     /** 추가요금을 통째로 바꾼다. 빈 목록이면 모두 지운다. 입금 완료된 관리비는 바꿀 수 없다 */
@@ -180,18 +204,22 @@ class ManagementFeeService(
         val ids = reservations.map { it.id!! }
         // 다중 객실 예약은 객실마다 관리비를 준다
         val roomsByReservation = reservationRoomRepository.findByReservationIds(ids).groupBy({ it.reservation.id!! }, { it.room })
-        val rates = managementFeeRateRepository
-            .findByRoomIdIn(reservations.flatMap { r -> roomsByReservation[r.id].orEmpty().map { it.id!! } + r.room.id!! }.toSet())
-            .groupBy { it.roomId }
         val existing = managementFeeRepository.findByReservationIdIn(ids)
             .associateBy { it.reservation.id!! to it.room.id!! }
+        // 현장에서 옮긴 객실은 옮긴 객실 단가로 준다
+        val rates = managementFeeRateRepository
+            .findByRoomIdIn(
+                reservations.flatMap { r -> roomsByReservation[r.id].orEmpty().map { it.id!! } + r.room.id!! }.toSet() +
+                    existing.values.mapNotNull { it.movedRoom?.id }
+            )
+            .groupBy { it.roomId }
         reservations.forEach { reservation ->
             roomsByReservation[reservation.id].orEmpty().ifEmpty { listOf(reservation.room) }.forEach { room ->
-                val stay = reservation.toFeeStay(room.id!!)
+                val fee = existing[reservation.id!! to room.id!!]
+                val stay = reservation.toFeeStay((fee?.feeRoom ?: room).id!!)
                 val decision = ManagementFeeRules.decide(stay) { roomId, checkIn ->
                     rates[roomId]?.singleOrNull { it.appliesTo(checkIn) }?.amount
                 }
-                val fee = existing[stay.reservationId to stay.roomId]
                 if (fee != null) {
                     fee.apply(decision)
                 } else {

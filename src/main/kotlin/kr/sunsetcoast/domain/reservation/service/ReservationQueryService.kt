@@ -6,6 +6,7 @@ import kr.sunsetcoast.domain.reservation.repository.ReservationRepository
 import kr.sunsetcoast.domain.reservation.repository.ReservationRoomRepository
 import kr.sunsetcoast.domain.reservation.vo.ReservationDetail
 import kr.sunsetcoast.domain.reservation.vo.ReservationSummary
+import kr.sunsetcoast.domain.reservation.vo.RoomChange
 import kr.sunsetcoast.domain.reservation.vo.SettlementLineWithFile
 import kr.sunsetcoast.domain.settlement.repository.SettlementLineRepository
 import org.springframework.stereotype.Service
@@ -38,12 +39,19 @@ class ReservationQueryService(
             .groupBy { it.reservation.id!! }
             .mapValues { (_, lines) -> lines.minOf { it.stayDate } }
         val rooms = reservationRoomRepository.findByReservationIds(ids).groupBy({ it.reservation.id!! }, { it.room })
-        val fees = managementFeeRepository.findByReservationIdIn(ids)
-            .groupBy({ it.reservation.id!! }, { it.amount })
-            .mapValues { (_, amounts) -> amounts.fold(BigDecimal.ZERO, BigDecimal::add) }
+        val feeRows = managementFeeRepository.findByReservationIdIn(ids).groupBy { it.reservation.id!! }
+        val fees = feeRows.mapValues { (_, list) -> list.fold(BigDecimal.ZERO) { sum, f -> sum + f.amount } }
 
         return reservations
-            .map { ReservationSummary(it, rooms[it.id].orEmpty().ifEmpty { listOf(it.room) }, it.checkInDate ?: revenueDates[it.id], fees[it.id]) }
+            .map {
+                ReservationSummary(
+                    it,
+                    rooms[it.id].orEmpty().ifEmpty { listOf(it.room) },
+                    it.checkInDate ?: revenueDates[it.id],
+                    fees[it.id],
+                    RoomChange.of(feeRows[it.id].orEmpty()),
+                )
+            }
             .sortedWith(compareBy<ReservationSummary> { it.baseDate }.thenBy { it.reservation.room.id }.thenBy { it.reservation.id })
     }
 

@@ -15,7 +15,18 @@ data class ReservationSummary(
     /** 입실일. 모르면(취소수수료만 있는 예약) 매출인식일 */
     val baseDate: LocalDate?,
     val managementFee: BigDecimal?,
+    /** 현장 객실 변경 (관리비 화면에서 입력) */
+    val roomChanges: List<RoomChange> = emptyList(),
 )
+
+/** 현장에서 방을 옮긴 기록. difference: 받은 차액 (매출에 더함) */
+data class RoomChange(val from: RoomEntity, val to: RoomEntity, val difference: BigDecimal?, val memo: String?) {
+    companion object {
+        fun of(fees: Collection<ManagementFeeEntity>): List<RoomChange> =
+            fees.mapNotNull { f -> f.movedRoom?.let { RoomChange(f.room, it, f.roomChangeDifference, f.roomChangeMemo) } }
+                .sortedBy { it.from.id }
+    }
+}
 
 /** 예약 상세: 정산 행과 관리비 */
 data class ReservationDetail(
