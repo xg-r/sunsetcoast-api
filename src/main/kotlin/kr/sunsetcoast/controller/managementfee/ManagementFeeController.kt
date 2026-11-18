@@ -4,6 +4,7 @@ import kr.sunsetcoast.config.security.CurrentUser
 import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeeExtrasRequestBody
 import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeeOverrideRequestBody
 import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeePaymentRequestBody
+import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeeRoomChangeRequestBody
 import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeeVerificationRequestBody
 import kr.sunsetcoast.controller.managementfee.dto.response.ManagementFeeResponseBody
 import kr.sunsetcoast.controller.managementfee.dto.response.MonthlyManagementFeeResponseBody
@@ -34,6 +35,15 @@ class ManagementFeeController(
     ): MonthlyManagementFeeResponseBody {
         val fees = managementFeeService.findMonthly(propertyId, businessOwnerId, month)
         return MonthlyManagementFeeResponseBody.from(propertyId, businessOwnerId, month, fees, managementFeeService.revenueOf(fees))
+    }
+
+    @PutMapping("/{id}/room-change", version = "1.0")
+    override fun changeRoom(
+        @PathVariable id: Long,
+        @RequestBody body: ManagementFeeRoomChangeRequestBody,
+    ): ManagementFeeResponseBody {
+        val fee = managementFeeService.changeRoom(id, body.roomId, body.difference, body.memo)
+        return ManagementFeeResponseBody.from(fee, managementFeeService.revenueOf(listOf(fee))[fee.id])
     }
 
     @PutMapping("/{id}/extras", version = "1.0")

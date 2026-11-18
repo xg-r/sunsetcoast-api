@@ -43,6 +43,21 @@ class ManagementFeeEntity(
     @JoinColumn(name = "room_id", nullable = false)
     val room: RoomEntity,
 
+    /** 현장에서 옮긴 객실 (실제로 묵은 객실). 관리비는 이 객실 단가로 계산한다. null이면 옮기지 않음 */
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "moved_room_id")
+    var movedRoom: RoomEntity? = null,
+
+    /** 객실을 옮기면서 손님에게 받은 차액 (환불이면 음수). 매출에 더한다 */
+    @Column(name = "room_change_difference", precision = 15, scale = 2)
+    var roomChangeDifference: BigDecimal? = null,
+
+    @Column(name = "room_change_memo")
+    var roomChangeMemo: String? = null,
+
+    @Column(name = "room_changed_at")
+    var roomChangedAt: LocalDateTime? = null,
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 20)
     var basis: ManagementFeeBasis,
@@ -185,6 +200,33 @@ class ManagementFeeEntity(
                 )
             )
         }
+        updatedAt = LocalDateTime.now()
+    }
+
+    /** 관리비 단가를 정하는 객실: 옮겼으면 옮긴 객실 */
+    val feeRoom: RoomEntity get() = movedRoom ?: room
+
+    /**
+     * 현장 객실 변경을 적는다. 관리비는 서비스가 옮긴 객실 단가로 다시 계산한다.
+     * @param difference 받은 차액 (없으면 null, 환불이면 음수)
+     */
+    fun changeRoom(to: RoomEntity, difference: BigDecimal?, memo: String?) {
+        check(!paid) { "입금 완료된 관리비는 객실 변경을 고칠 수 없습니다. 입금 완료를 취소한 뒤 고쳐 주세요." }
+        require(to.id != room.id) { "예약한 객실과 같은 객실로는 옮길 수 없습니다. 객실 변경을 취소하려면 '변경 취소'를 눌러 주세요." }
+        require(to.property.id == room.property.id) { "같은 업소의 객실로만 옮길 수 있습니다: ${to.name}" }
+        movedRoom = to
+        roomChangeDifference = difference?.takeIf { it.signum() != 0 }
+        roomChangeMemo = memo?.trim()?.ifEmpty { null }
+        roomChangedAt = LocalDateTime.now()
+        updatedAt = LocalDateTime.now()
+    }
+
+    fun clearRoomChange() {
+        check(!paid) { "입금 완료된 관리비는 객실 변경을 고칠 수 없습니다. 입금 완료를 취소한 뒤 고쳐 주세요." }
+        movedRoom = null
+        roomChangeDifference = null
+        roomChangeMemo = null
+        roomChangedAt = null
         updatedAt = LocalDateTime.now()
     }
 

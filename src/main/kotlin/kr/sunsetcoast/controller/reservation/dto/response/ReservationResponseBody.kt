@@ -3,6 +3,7 @@ package kr.sunsetcoast.controller.reservation.dto.response
 import io.swagger.v3.oas.annotations.media.Schema
 import kr.sunsetcoast.domain.reservation.entity.ReservationEntity
 import kr.sunsetcoast.domain.reservation.vo.ReservationSummary
+import kr.sunsetcoast.domain.reservation.vo.RoomChange
 import kr.sunsetcoast.domain.room.entity.RoomEntity
 import java.math.BigDecimal
 import java.time.LocalDate
@@ -25,6 +26,8 @@ data class ReservationResponseBody(
     val roomName: String,
     @field:Schema(description = "예약의 모든 객실 (다중 객실 예약은 2개 이상)")
     val rooms: List<RoomRef>,
+    @field:Schema(description = "현장에서 옮긴 객실 (관리비 화면에서 입력). rooms는 예약한 객실 그대로")
+    val roomChanges: List<RoomChangeRef>,
     @field:Schema(description = "예약자 (플랫폼에 따라 마스킹)", nullable = true, example = "이*얀")
     val bookerName: String?,
     @field:Schema(description = "예약 일시", nullable = true, example = "2026-07-15T17:00:36")
@@ -41,12 +44,14 @@ data class ReservationResponseBody(
     val peakSeason: Boolean?,
     @field:Schema(description = "CONFIRMED: 투숙, CANCELLED: 취소", allowableValues = ["CONFIRMED", "CANCELLED"])
     val status: String,
-    @field:Schema(description = "매출 합계", example = "250000")
+    @field:Schema(description = "매출 합계 (현장 객실 변경 차액 포함)", example = "250000")
     val grossAmount: BigDecimal?,
     @field:Schema(description = "수수료 합계", example = "37500")
     val commissionAmount: BigDecimal?,
-    @field:Schema(description = "정산금액(입금액) 합계", example = "212500")
+    @field:Schema(description = "정산금액(입금액) 합계 (현장 객실 변경 차액 포함)", example = "212500")
     val netAmount: BigDecimal?,
+    @field:Schema(description = "현장 객실 변경 차액 합계. 슈퍼어드민이 아니거나 없으면 null", nullable = true, example = "120000")
+    val roomChangeDifference: BigDecimal?,
     @field:Schema(description = "현장 관리비 (객실 합계, 수정 금액 반영). 계산 전이거나 슈퍼어드민이 아니면 null", nullable = true, example = "30000")
     val managementFee: BigDecimal?,
     @field:Schema(description = "US: 우리 입금, OWNER: 외부 소유주 계좌로 직접 입금 (매출 제외)", allowableValues = ["US", "OWNER"])
@@ -63,12 +68,33 @@ data class ReservationResponseBody(
     @Schema(name = "ReservationRoom", description = "예약 객실")
     data class RoomRef(val id: Long, val name: String)
 
+    @Schema(name = "ReservationRoomChange", description = "현장 객실 변경")
+    data class RoomChangeRef(
+        val fromRoomId: Long,
+        val fromRoomName: String,
+        val toRoomId: Long,
+        val toRoomName: String,
+        @field:Schema(description = "받은 차액. 슈퍼어드민만", nullable = true) val difference: BigDecimal?,
+        val memo: String?,
+    )
+
     companion object {
         /** @param includeAmounts 매출·정산금액·관리비는 슈퍼어드민만 본다 (아니면 null) */
         fun from(summary: ReservationSummary, includeAmounts: Boolean) =
-            of(summary.reservation, summary.rooms, summary.baseDate, summary.managementFee.takeIf { includeAmounts }, includeAmounts)
+            of(summary.reservation, summary.rooms, summary.baseDate, summary.managementFee.takeIf { includeAmounts }, includeAmounts, summary.roomChanges)
 
-        fun of(r: ReservationEntity, rooms: List<RoomEntity>, baseDate: LocalDate?, managementFee: BigDecimal?, includeAmounts: Boolean) = ReservationResponseBody(
+        fun of(
+            r: ReservationEntity,
+            rooms: List<RoomEntity>,
+            baseDate: LocalDate?,
+            managementFee: BigDecimal?,
+            includeAmounts: Boolean,
+            roomChanges: List<RoomChange> = emptyList(),
+        ): ReservationResponseBody {
+            // 현장 객실 변경 차액은 우리 계좌로 받은 매출 (수수료 없음)
+            val difference = roomChanges.mapNotNull { it.difference }.takeIf { it.isNotEmpty() }?.fold(BigDecimal.ZERO, BigDecimal::add)
+            val extra = difference ?: BigDecimal.ZERO
+            return ReservationResponseBody(
             id = r.id!!,
             source = r.source.name,
             reservationNumber = r.reservationNumber,
@@ -77,6 +103,9 @@ data class ReservationResponseBody(
             roomId = r.room.id!!,
             roomName = r.room.name,
             rooms = rooms.map { RoomRef(it.id!!, it.name) },
+            roomChanges = roomChanges.map {
+                RoomChangeRef(it.from.id!!, it.from.name, it.to.id!!, it.to.name, it.difference.takeIf { includeAmounts }, it.memo)
+            },
             bookerName = r.bookerName,
             reservedAt = r.reservedAt?.withNano(0)?.toString(),
             checkInDate = r.checkInDate?.toString(),
@@ -85,9 +114,10 @@ data class ReservationResponseBody(
             weekend = r.weekend,
             peakSeason = r.peakSeason,
             status = r.status.name,
-            grossAmount = r.grossAmount.takeIf { includeAmounts },
+            grossAmount = (r.grossAmount + extra).takeIf { includeAmounts },
             commissionAmount = r.commissionAmount.takeIf { includeAmounts },
-            netAmount = r.netAmount.takeIf { includeAmounts },
+            netAmount = (r.netAmount + extra).takeIf { includeAmounts },
+            roomChangeDifference = difference.takeIf { includeAmounts },
             managementFee = managementFee,
             paymentReceiver = r.paymentReceiver.name,
             guestCount = r.guestCount,
@@ -95,5 +125,6 @@ data class ReservationResponseBody(
             paid = r.paid,
             memo = r.memo,
         )
+        }
     }
 }

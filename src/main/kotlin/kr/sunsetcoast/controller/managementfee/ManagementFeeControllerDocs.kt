@@ -6,6 +6,7 @@ import io.swagger.v3.oas.annotations.tags.Tag
 import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeeExtrasRequestBody
 import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeeOverrideRequestBody
 import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeePaymentRequestBody
+import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeeRoomChangeRequestBody
 import kr.sunsetcoast.controller.managementfee.dto.request.ManagementFeeVerificationRequestBody
 import kr.sunsetcoast.controller.managementfee.dto.response.ManagementFeeResponseBody
 import kr.sunsetcoast.controller.managementfee.dto.response.MonthlyManagementFeeResponseBody
@@ -26,6 +27,18 @@ interface ManagementFeeControllerDocs {
         @Parameter(description = "사업자 ID (생략하면 전체)", example = "1") businessOwnerId: Long?,
         @Parameter(description = "입실 월 (yyyy-MM)", example = "2026-08") month: YearMonth,
     ): MonthlyManagementFeeResponseBody
+
+    @Operation(
+        summary = "현장 객실 변경",
+        description = "손님이 현장에서 방을 옮긴 경우(예: 해안 → 놀멍) 실제로 묵은 객실과 받은 차액을 적는다. " +
+            "관리비는 옮긴 객실 단가로 다시 계산하고(관리자가 고친 금액이 있으면 그 금액), 차액은 그 행과 예약의 매출에 더한다. " +
+            "예약의 원래 객실은 바꾸지 않는다 (정산 파일을 다시 올려도 유지). 같은 업소 객실로만, 입금 완료된 관리비는 바꿀 수 없다. " +
+            "roomId가 null이거나 예약한 객실이면 변경을 취소한다.",
+    )
+    fun changeRoom(
+        @Parameter(description = "관리비 ID", example = "12") id: Long,
+        body: ManagementFeeRoomChangeRequestBody,
+    ): ManagementFeeResponseBody
 
     @Operation(
         summary = "관리비 추가요금 저장",

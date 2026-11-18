@@ -22,6 +22,14 @@ data class ManagementFeeResponseBody(
     val roomId: Long,
     @field:Schema(description = "객실 이름", example = "RESORT_305")
     val roomName: String,
+    @field:Schema(description = "현장에서 옮긴 객실 ID (실제로 묵은 객실). 관리비는 이 객실 단가", nullable = true, example = "3")
+    val movedRoomId: Long?,
+    @field:Schema(description = "현장에서 옮긴 객실 이름", nullable = true, example = "놀멍")
+    val movedRoomName: String?,
+    @field:Schema(description = "객실을 옮기며 받은 차액 (환불이면 음수). grossAmount·netAmount에 포함", nullable = true, example = "120000")
+    val roomChangeDifference: BigDecimal?,
+    @field:Schema(description = "객실 변경 메모", nullable = true)
+    val roomChangeMemo: String?,
     @field:Schema(description = "입실일", nullable = true, example = "2026-08-03")
     val checkInDate: String?,
     @field:Schema(description = "박수", nullable = true, example = "1")
@@ -96,6 +104,10 @@ data class ManagementFeeResponseBody(
             bookerName = entity.reservation.bookerName,
             roomId = entity.room.id!!,
             roomName = entity.room.name,
+            movedRoomId = entity.movedRoom?.id,
+            movedRoomName = entity.movedRoom?.name,
+            roomChangeDifference = entity.roomChangeDifference,
+            roomChangeMemo = entity.roomChangeMemo,
             checkInDate = entity.reservation.checkInDate?.toString(),
             nights = entity.reservation.nights,
             status = entity.reservation.status.name,

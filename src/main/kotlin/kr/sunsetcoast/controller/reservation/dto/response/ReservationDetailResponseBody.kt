@@ -3,6 +3,7 @@ package kr.sunsetcoast.controller.reservation.dto.response
 import io.swagger.v3.oas.annotations.media.Schema
 import kr.sunsetcoast.controller.managementfee.dto.response.ManagementFeeResponseBody
 import kr.sunsetcoast.domain.reservation.vo.ReservationDetail
+import kr.sunsetcoast.domain.reservation.vo.RoomChange
 import kr.sunsetcoast.domain.reservation.vo.SettlementLineWithFile
 import java.math.BigDecimal
 
@@ -73,7 +74,7 @@ data class ReservationDetailResponseBody(
             val fee = fees.takeIf { it.isNotEmpty() }?.fold(BigDecimal.ZERO) { sum, f -> sum + f.amount }
             val baseDate = detail.reservation.checkInDate ?: detail.lines.minOfOrNull { it.line.stayDate }
             return ReservationDetailResponseBody(
-                reservation = ReservationResponseBody.of(detail.reservation, detail.rooms, baseDate, fee, includeAmounts),
+                reservation = ReservationResponseBody.of(detail.reservation, detail.rooms, baseDate, fee, includeAmounts, RoomChange.of(detail.fees)),
                 lines = if (includeAmounts) detail.lines.map { Line.from(it) } else emptyList(),
                 managementFees = fees.map { ManagementFeeResponseBody.from(it) },
             )
