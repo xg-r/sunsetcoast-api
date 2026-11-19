@@ -187,6 +187,24 @@ class SettlementFileParsersTest : FunSpec({
             first.amounts.platformDiscount shouldBe BigDecimal(1891)
             first.amounts.normalized().net shouldBe money(22446)
         }
+
+        test("투숙취소는 앞서 정산한 1박을 음수로 차감한다") {
+            // 정산상세내역_20261119 (21).xls: 204호 9/2 투숙완료 뒤 같은 박을 투숙취소
+            val bytes = WorkbookFixtures.xlsx(
+                listOf(
+                    listOf("정산 내역 : 테스트"),
+                    listOf("", "", "", "", "", "", "", "합계", "0원", "-", "0원"),
+                    header,
+                    row("투숙완료", "99,000원", "12,870원", "86,130원"),
+                    row("투숙취소", "-99,000원", "-12,870원", "-86,130원"),
+                )
+            )
+
+            val reversal = parsers.parse(bytes).rows[1].lines.single()
+            reversal.lineType shouldBe SettlementLineType.ROOM_NIGHT_REVERSAL
+            reversal.amounts.gross shouldBe BigDecimal(-99000)
+            reversal.amounts.net shouldBe BigDecimal(-86130)
+        }
     }
 
     test("지원하지 않는 파일은 거부한다") {
