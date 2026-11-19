@@ -30,6 +30,8 @@ class NolSettlementParser : SettlementFileParser {
         val lineType = when (val type = row.text(TYPE)) {
             "투숙완료" -> SettlementLineType.ROOM_NIGHT
             "취소수수료" -> SettlementLineType.CANCELLATION_FEE
+            // 투숙 이후 취소: 앞서 정산한 1박을 음수 금액으로 차감 (여기어때 '입실후취소'와 같다)
+            "투숙취소" -> SettlementLineType.ROOM_NIGHT_REVERSAL
             else -> throw IllegalArgumentException("알 수 없는 '$TYPE' 값: $type")
         }
 
