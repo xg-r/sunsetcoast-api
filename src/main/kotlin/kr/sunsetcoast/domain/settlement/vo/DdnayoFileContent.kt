@@ -12,6 +12,8 @@ import java.time.temporal.TemporalAdjusters
  * - 정산일: 떠나요는 체크아웃일(이용일 + 이용박수)이 속한 주(월~일)를 다음 주 화요일에 정산한다.
  *   (8월 주간 파일 4개가 모두 한 주로 떨어지고 파일명 날짜와 같다)
  *   한 달 치를 한 번에 받은 파일은 정산일이 여러 개다 → [settlementDates]. 취소 행은 이용일이 먼 미래일 수 있어 빼고 본다.
+ *   주간 파일은 행이 한 주에 몰리고 다른 주 행이 한두 건 섞인다(그 주는 빼고 본다). 어느 주도 절반을 넘지 않으면
+ *   한 달 치 파일로 보고 1건뿐인 주도 넣는다 (예약이 적은 스테이디앤디 월간 파일은 주마다 1건씩이다).
  */
 data class DdnayoFileContent(
     val businessNumber: String?,
@@ -30,6 +32,9 @@ data class DdnayoFileContent(
         private const val MIN_ROWS_PER_WEEK = 2
         private const val MIN_SHARE_PER_WEEK = 0.05
 
+        /** 행이 가장 많은 주가 이 비율 이하면 한 달 치 파일 */
+        private const val WEEKLY_FILE_MIN_SHARE = 0.5
+
         fun of(rows: List<Map<String, String?>>): DdnayoFileContent {
             val businessNumber = rows.mapNotNull { it[BUSINESS_NUMBER]?.trim()?.takeIf(String::isNotEmpty) }
                 .groupingBy { it }.eachCount()
@@ -43,7 +48,11 @@ data class DdnayoFileContent(
 
             val main = counts.maxWithOrNull(compareBy<Map.Entry<LocalDate, Int>> { it.value }.thenBy { it.key })!!.key
             val total = counts.values.sum()
-            val weeks = counts.filter { (week, n) -> week == main || (n >= MIN_ROWS_PER_WEEK && n >= total * MIN_SHARE_PER_WEEK) }.keys
+            val monthly = counts.getValue(main) <= total * WEEKLY_FILE_MIN_SHARE
+            // 한 달 치 파일은 1건뿐인 주도 넣는다. 다만 행이 많은 파일에 1건 섞인 주(5% 미만)는 뺀다
+            val weeks = counts.filter { (week, n) ->
+                week == main || (n >= total * MIN_SHARE_PER_WEEK && (n >= MIN_ROWS_PER_WEEK || monthly))
+            }.keys
             return DdnayoFileContent(businessNumber, settlementOf(main), weeks.sorted().map(::settlementOf))
         }
 
