@@ -17,6 +17,15 @@ class SettlementFileNameTest : FunSpec({
             SettlementFileName("서귀포 스테이 디앤디 풀빌라", LocalDate.of(2026, 8, 26))
     }
 
+    test("여기어때 기간 파일명 (한 달 치)은 정산일 대신 기간") {
+        SettlementFileName.parse("정산내역_서귀포 선셋코스트 카라반&캠핑장_2026-03-01_2026-03-31 (1).xlsx", uploaded) shouldBe
+            SettlementFileName(
+                "서귀포 선셋코스트 카라반&캠핑장",
+                null,
+                period = LocalDate.of(2026, 3, 1)..LocalDate.of(2026, 3, 31),
+            )
+    }
+
     test("NOL 파일명은 판매자 계정과 MMdd") {
         SettlementFileName.parse("정산상세내역_스테이디앤디_대흥cns_0820.xls", uploaded) shouldBe
             SettlementFileName("대흥cns", LocalDate.of(2026, 8, 20))

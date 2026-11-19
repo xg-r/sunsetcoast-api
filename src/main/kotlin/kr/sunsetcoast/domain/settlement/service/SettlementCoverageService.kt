@@ -49,7 +49,7 @@ class SettlementCoverageService(
         val propertyByBatch = settlementLineRepository.countByBatchAndProperty()
             .groupBy { it.batchId }
             .mapValues { (_, counts) -> counts.maxBy { it.lines }.propertyId }
-        val settledOnByBatch = settlementLineRepository.maxSettledOnByBatch().associate { it.batchId to it.settledOn }
+        val settledOnsByBatch = settlementLineRepository.settledOnsByBatch().groupBy({ it.batchId }, { it.settledOn })
 
         val parsed = withDdnayoContent(
             batches.map { batch -> batch to SettlementFileName.parse(batch.fileName, batch.createdAt.toLocalDate()) },
@@ -61,14 +61,21 @@ class SettlementCoverageService(
             .mapValues { (_, ids) -> ids.groupingBy { it }.eachCount().maxBy { it.value }.key }
 
         return parsed.map { (batch, name) ->
-            val issuedOn = name.issuedOn ?: name.estimatedIssuedOn ?: settledOnByBatch[batch.id] ?: batch.createdAt.toLocalDate()
+            val settledOns = settledOnsByBatch[batch.id].orEmpty().sorted()
+            // 기간 파일(여기어때 한 달 치)은 정산 행의 정산일 전부. 행이 없으면 기간 안의 주마다 하나씩
+            val periodDates = name.period?.let { period -> settledOns.ifEmpty { weeklyDates(period) } }
+            val issuedOn = name.issuedOn ?: periodDates?.last() ?: name.estimatedIssuedOn ?: settledOns.lastOrNull() ?: batch.createdAt.toLocalDate()
             CoverageFile(
                 batch = batch,
                 account = name.account,
                 propertyId = propertyByBatch[batch.id] ?: name.account?.let { propertyByAccount[batch.source to it] },
                 issuedOn = issuedOn,
-                issuedOnFromFileName = name.issuedOn != null,
-                settlementDates = if (name.issuedOn != null) listOf(issuedOn) else name.estimatedDates.ifEmpty { listOf(issuedOn) },
+                issuedOnFromFileName = name.issuedOn != null || name.period != null,
+                settlementDates = when {
+                    name.issuedOn != null -> listOf(issuedOn)
+                    periodDates != null -> periodDates
+                    else -> name.estimatedDates.ifEmpty { listOf(issuedOn) }
+                },
             )
         }
     }
@@ -179,6 +186,15 @@ class SettlementCoverageService(
         require(settlementAccountRepository.existsById(id)) { "정산 계정이 없습니다: $id" }
         settlementAccountRepository.deleteById(id)
     }
+}
+
+/** 기간의 시작일부터 7일 간격 날짜 (기간이 걸친 주마다 하나) */
+internal fun weeklyDates(period: ClosedRange<LocalDate>): List<LocalDate> {
+    val firstMonday = period.start.with(TemporalAdjusters.previousOrSame(DayOfWeek.MONDAY))
+    return generateSequence(firstMonday) { it.plusWeeks(1) }
+        .takeWhile { it <= period.endInclusive }
+        .map { maxOf(it, period.start) }
+        .toList()
 }
 
 private val PAYLOAD = object : TypeReference<Map<String, String?>>() {}
