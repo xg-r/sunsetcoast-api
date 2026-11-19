@@ -5,6 +5,7 @@ import kr.sunsetcoast.domain.importbatch.repository.ImportBatchRepository
 import kr.sunsetcoast.domain.importbatch.repository.ImportRowRepository
 import kr.sunsetcoast.domain.reservation.repository.ReservationRepository
 import kr.sunsetcoast.domain.reservation.vo.OtaPlatform
+import kr.sunsetcoast.domain.room.repository.RoomRepository
 import kr.sunsetcoast.domain.settlement.entity.SettlementAccountEntity
 import kr.sunsetcoast.domain.settlement.entity.SettlementWeekCheckEntity
 import kr.sunsetcoast.domain.settlement.repository.SettlementAccountRepository
@@ -31,6 +32,7 @@ class SettlementCoverageService(
     private val settlementAccountRepository: SettlementAccountRepository,
     private val importRowRepository: ImportRowRepository,
     private val reservationRepository: ReservationRepository,
+    private val roomRepository: RoomRepository,
     private val jsonMapper: JsonMapper,
 ) {
     data class CoverageFile(
@@ -128,8 +130,10 @@ class SettlementCoverageService(
      * 떠나요에서 받은 그대로의 파일(`AdjustCalendar(…).xls`)은 파일명에 계정·정산일이 없어 파일 내용으로 채운다.
      * 계정 이름은 [ddnayoAccountName] 순서로 정한다. 정산일은 파일명에서 읽은 것으로 치지 않는다.
      *
-     * 한 사업자번호가 여러 업소에 걸칠 수 있다 (278-27-01574는 캠핑장과 스테이디앤디 리조트 객실 둘 다).
-     * 그래서 사업자번호로 고른 등록 계정의 업소와 파일 정산 행의 업소가 다르면, 그 업소에 등록한 떠나요 계정이 하나뿐일 때 그 계정으로 본다.
+     * 떠나요 파일은 업소 단위로 받고, 행마다 그 객실 명의의 사업자번호가 붙는다 (스테이디앤디 파일에 278·126·658이 섞인다).
+     * 한 사업자번호가 여러 업소에 걸치기도 한다 (278-27-01574는 캠핑장과 리조트 객실 둘 다).
+     * 그래서 파일 업소를 알면 그 업소에 등록한 떠나요 계정(하나일 때)으로 보고, 모를 때만 사업자번호로 정한다.
+     * 파일 업소: 정산 행 → 행의 예약번호로 찾은 예약 → 사업자번호 명의 객실이 한 업소에만 있으면 그 업소.
      */
     private fun withDdnayoContent(
         parsed: List<Pair<ImportBatchEntity, SettlementFileName>>,
@@ -145,15 +149,19 @@ class SettlementCoverageService(
             .toSet().takeIf { it.isNotEmpty() }
             ?.let { numbers -> reservationRepository.findPropertiesByReservationNumbers(OtaPlatform.DDNAYO, numbers) }
             .orEmpty().associate { it.reservationNumber to it.propertyId }
-        fun propertyOf(batchId: Long): Long? = propertyByBatch[batchId]
+        val propertyByBusinessNumber = roomRepository.findPropertiesByBusinessNumber()
+            .mapNotNull { p -> BusinessNumber.normalize(p.businessNumber)?.let { it to p.propertyId } }
+            .groupBy({ it.first }, { it.second })
+            .mapValues { (_, ids) -> ids.distinct().singleOrNull() }
+        fun propertyOf(batchId: Long, businessNumber: String?): Long? = propertyByBatch[batchId]
             ?: rowsByBatch[batchId].orEmpty().mapNotNull { row -> row[RESERVATION_NUMBER]?.trim()?.let(propertyByNumber::get) }
                 .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
+            ?: BusinessNumber.normalize(businessNumber)?.let { propertyByBusinessNumber[it] }
         val contentByBatch = ddnayo.associate { (batch, _) -> batch.id!! to DdnayoFileContent.of(rowsByBatch[batch.id].orEmpty()) }
         val ddnayoAccounts = settlementAccountRepository.findAll().filter { it.source == OtaPlatform.DDNAYO }
         val registered = ddnayoAccounts
             .mapNotNull { account -> account.businessNumber?.let { it to account.account } }
             .toMap()
-        val propertyOfAccount = ddnayoAccounts.mapNotNull { a -> a.propertyId?.let { a.account to it } }.toMap()
         val accountsByProperty = ddnayoAccounts.filter { it.propertyId != null }.groupBy({ it.propertyId!! }, { it.account })
         val fromNamedFiles = ddnayo
             .mapNotNull { (batch, name) ->
@@ -166,13 +174,7 @@ class SettlementCoverageService(
             if (batch.source != OtaPlatform.DDNAYO || name.account != null) return@map batch to name
             val content = contentByBatch.getValue(batch.id!!)
             val byNumber = content.businessNumber?.let { ddnayoAccountName(it, registered, fromNamedFiles) }
-            val property = propertyOf(batch.id!!)
-            val numberProperty = byNumber?.let { propertyOfAccount[it] }
-            val account = if (property != null && numberProperty != null && numberProperty != property) {
-                accountsByProperty[property]?.singleOrNull() ?: byNumber
-            } else {
-                byNumber
-            }
+            val account = propertyOf(batch.id!!, content.businessNumber)?.let { accountsByProperty[it]?.singleOrNull() } ?: byNumber
             batch to SettlementFileName(account, null, content.issuedOn, content.settlementDates)
         }
     }
