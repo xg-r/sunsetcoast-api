@@ -52,4 +52,15 @@ class DdnayoFileContentTest : FunSpec({
         content.settlementDates shouldBe listOf(LocalDate.of(2026, 10, 6), LocalDate.of(2026, 10, 13), LocalDate.of(2026, 10, 20))
         content.issuedOn shouldBe LocalDate.of(2026, 10, 20)
     }
+
+    test("예약이 적은 한 달 치 파일은 1건뿐인 주도 정산일로 본다") {
+        // AdjustCalendar(2026-03) (12).xls (스테이디앤디): 3/2·3/20·3/28 이용 1박씩
+        val content = DdnayoFileContent.of(listOf(row("2026-03-02"), row("2026-03-20"), row("2026-03-28")))
+        content.settlementDates shouldBe listOf(LocalDate.of(2026, 3, 10), LocalDate.of(2026, 3, 24), LocalDate.of(2026, 3, 31))
+    }
+
+    test("주간 파일에 1건 섞인 다른 주는 빼고 본다") {
+        val rows = List(14) { row(LocalDate.of(2026, 11, 9).plusDays((it % 5).toLong()).toString()) } + listOf(row("2026-11-03"))
+        DdnayoFileContent.of(rows).settlementDates shouldBe listOf(LocalDate.of(2026, 11, 17))
+    }
 })

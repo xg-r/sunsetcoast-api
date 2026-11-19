@@ -12,6 +12,19 @@ interface ReservationRepository : JpaRepository<ReservationEntity, Long> {
 
     fun findBySourceAndReservationNumberStartingWith(source: OtaPlatform, prefix: String): List<ReservationEntity>
 
+    /** 예약번호별 업소·객실 명의 사업자 (예약 객실 기준). 정산 파일이 어느 업소·계정 것인지 볼 때 쓴다 */
+    @Query(
+        """
+        select new kr.sunsetcoast.domain.reservation.repository.ReservationNumberProperty(r.reservationNumber, room.property.id, room.businessOwnerEntity.id)
+        from ReservationEntity r join r.room room
+        where r.source = :source and r.reservationNumber in :numbers
+        """
+    )
+    fun findPropertiesByReservationNumbers(
+        @Param("source") source: OtaPlatform,
+        @Param("numbers") numbers: Collection<String>,
+    ): List<ReservationNumberProperty>
+
     @Query(
         """
         select r from ReservationEntity r join fetch r.room room
@@ -48,3 +61,5 @@ interface ReservationRepository : JpaRepository<ReservationEntity, Long> {
     @Query("select r from ReservationEntity r join fetch r.room")
     fun findAllWithRoom(): List<ReservationEntity>
 }
+
+data class ReservationNumberProperty(val reservationNumber: String, val propertyId: Long, val businessOwnerId: Long)

@@ -48,6 +48,16 @@ interface SettlementLineRepository : JpaRepository<SettlementLineEntity, Long> {
 
     @Query(
         """
+        select new kr.sunsetcoast.domain.settlement.repository.BatchOwnerCount(l.importBatchId, l.room.businessOwnerEntity.id, count(l))
+        from SettlementLineEntity l
+        where l.importBatchId is not null
+        group by l.importBatchId, l.room.businessOwnerEntity.id
+        """
+    )
+    fun countByBatchAndOwner(): List<BatchOwnerCount>
+
+    @Query(
+        """
         select distinct new kr.sunsetcoast.domain.settlement.repository.BatchSettledOn(l.importBatchId, l.settledOn)
         from SettlementLineEntity l
         where l.importBatchId is not null and l.settledOn is not null
@@ -55,6 +65,9 @@ interface SettlementLineRepository : JpaRepository<SettlementLineEntity, Long> {
     )
     fun settledOnsByBatch(): List<BatchSettledOn>
 }
+
+/** 업로드 파일별·객실 명의 사업자별 정산 행 수 */
+data class BatchOwnerCount(val batchId: Long, val businessOwnerId: Long, val lines: Long)
 
 /** 업로드 파일별·업소별 정산 행 수 */
 data class BatchPropertyCount(val batchId: Long, val propertyId: Long, val lines: Long)

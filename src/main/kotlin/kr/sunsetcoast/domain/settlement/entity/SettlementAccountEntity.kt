@@ -31,6 +31,10 @@ class SettlementAccountEntity(
     @Column(name = "business_number", length = 10)
     var businessNumber: String? = null,
 
+    /** NOL 계정의 사업자(객실 명의). 판매자 계정이 없는 NOL 원본 파일을 객실 명의로 이 계정에 붙인다 */
+    @Column(name = "business_owner_id")
+    var businessOwnerId: Long? = null,
+
     /** 이 주(월요일)부터 정산 파일이 있어야 한다 */
     @Column(name = "started_on", nullable = false)
     val startedOn: LocalDate,

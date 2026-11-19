@@ -3,6 +3,7 @@ package kr.sunsetcoast.domain.settlement.service
 import kr.sunsetcoast.domain.importbatch.entity.ImportBatchEntity
 import kr.sunsetcoast.domain.importbatch.repository.ImportBatchRepository
 import kr.sunsetcoast.domain.importbatch.repository.ImportRowRepository
+import kr.sunsetcoast.domain.reservation.repository.ReservationRepository
 import kr.sunsetcoast.domain.reservation.vo.OtaPlatform
 import kr.sunsetcoast.domain.settlement.entity.SettlementAccountEntity
 import kr.sunsetcoast.domain.settlement.entity.SettlementWeekCheckEntity
@@ -29,6 +30,7 @@ class SettlementCoverageService(
     private val settlementWeekCheckRepository: SettlementWeekCheckRepository,
     private val settlementAccountRepository: SettlementAccountRepository,
     private val importRowRepository: ImportRowRepository,
+    private val reservationRepository: ReservationRepository,
     private val jsonMapper: JsonMapper,
 ) {
     data class CoverageFile(
@@ -51,14 +53,19 @@ class SettlementCoverageService(
             .mapValues { (_, counts) -> counts.maxBy { it.lines }.propertyId }
         val settledOnsByBatch = settlementLineRepository.settledOnsByBatch().groupBy({ it.batchId }, { it.settledOn })
 
-        val parsed = withDdnayoContent(
-            batches.map { batch -> batch to SettlementFileName.parse(batch.fileName, batch.createdAt.toLocalDate()) },
+        val parsed = withNolOwner(
+            withDdnayoContent(
+                batches.map { batch -> batch to SettlementFileName.parse(batch.fileName, batch.createdAt.toLocalDate()) },
+                propertyByBatch,
+            ),
         )
         val propertyByAccount = parsed
             .mapNotNull { (batch, name) -> name.account?.let { (batch.source to it) to propertyByBatch[batch.id] } }
             .filter { it.second != null }
             .groupBy({ it.first }, { it.second!! })
             .mapValues { (_, ids) -> ids.groupingBy { it }.eachCount().maxBy { it.value }.key }
+        val registeredProperty = settlementAccountRepository.findAll()
+            .mapNotNull { a -> a.propertyId?.let { (a.source to a.account) to it } }.toMap()
 
         return parsed.map { (batch, name) ->
             val settledOns = settledOnsByBatch[batch.id].orEmpty().sorted()
@@ -68,35 +75,86 @@ class SettlementCoverageService(
             CoverageFile(
                 batch = batch,
                 account = name.account,
-                propertyId = propertyByBatch[batch.id] ?: name.account?.let { propertyByAccount[batch.source to it] },
+                propertyId = propertyByBatch[batch.id]
+                    ?: name.account?.let { propertyByAccount[batch.source to it] ?: registeredProperty[batch.source to it] },
                 issuedOn = issuedOn,
                 issuedOnFromFileName = name.issuedOn != null || name.period != null,
                 settlementDates = when {
                     name.issuedOn != null -> listOf(issuedOn)
                     periodDates != null -> periodDates
-                    else -> name.estimatedDates.ifEmpty { listOf(issuedOn) }
+                    // 파일명에 정산일이 없으면 파일 내용 추정 → 정산 행의 정산일 전부
+                    else -> name.estimatedDates.ifEmpty { settledOns.ifEmpty { listOf(issuedOn) } }
                 },
             )
         }
     }
 
     /**
+     * NOL에서 받은 그대로의 파일(`정산상세내역_yyyyMMdd.xls`)은 파일명에 판매자 계정이 없고 파일 안에도 업소명뿐이다.
+     * NOL은 객실 명의 사업자별로 정산하므로, 파일 예약의 객실 명의 사업자를 지정해 둔 NOL 계정으로 본다.
+     * 사업자는 파일의 정산 행 객실에서, 행이 없으면(모두 중복·미매핑) 행의 예약번호로 찾은 예약 객실에서 다수결로 정한다.
+     */
+    private fun withNolOwner(
+        parsed: List<Pair<ImportBatchEntity, SettlementFileName>>,
+    ): List<Pair<ImportBatchEntity, SettlementFileName>> {
+        val unnamed = parsed.filter { (batch, name) -> batch.source == OtaPlatform.NOL && name.account == null }
+        if (unnamed.isEmpty()) return parsed
+
+        val accountByOwner = settlementAccountRepository.findAll()
+            .filter { it.source == OtaPlatform.NOL && it.businessOwnerId != null }
+            .groupBy({ it.businessOwnerId!! }, { it.account })
+            .mapValues { (_, names) -> names.singleOrNull() }
+        val ownerCounts = settlementLineRepository.countByBatchAndOwner().groupBy { it.batchId }
+        val rowsByBatch = importRowRepository.findByImportBatchIdIn(unnamed.map { it.first.id!! })
+            .groupBy({ it.importBatchId }, { jsonMapper.readValue(it.payload, PAYLOAD) })
+        val ownerByNumber = rowsByBatch.values.flatten().mapNotNull { it[RESERVATION_NUMBER]?.trim() }.toSet().takeIf { it.isNotEmpty() }
+            ?.let { numbers -> reservationRepository.findPropertiesByReservationNumbers(OtaPlatform.NOL, numbers) }
+            .orEmpty().associate { it.reservationNumber to it.businessOwnerId }
+
+        return parsed.map { (batch, name) ->
+            if (batch.source != OtaPlatform.NOL || name.account != null) return@map batch to name
+            val owner = ownerCounts[batch.id]?.maxBy { it.lines }?.businessOwnerId
+                ?: rowsByBatch[batch.id].orEmpty().mapNotNull { row -> row[RESERVATION_NUMBER]?.trim()?.let(ownerByNumber::get) }
+                    .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
+            // 정산일은 행의 '정산일' 열 (정산 행이 없어도 읽히게)
+            val dates = rowsByBatch[batch.id].orEmpty()
+                .mapNotNull { row -> row[NOL_SETTLED_ON]?.trim()?.take(10)?.let { runCatching { LocalDate.parse(it) }.getOrNull() } }
+                .distinct().sorted()
+            batch to name.copy(account = owner?.let { accountByOwner[it] }, estimatedIssuedOn = dates.lastOrNull(), estimatedDates = dates)
+        }
+    }
+
+    /**
      * 떠나요에서 받은 그대로의 파일(`AdjustCalendar(…).xls`)은 파일명에 계정·정산일이 없어 파일 내용으로 채운다.
      * 계정 이름은 [ddnayoAccountName] 순서로 정한다. 정산일은 파일명에서 읽은 것으로 치지 않는다.
+     *
+     * 한 사업자번호가 여러 업소에 걸칠 수 있다 (278-27-01574는 캠핑장과 스테이디앤디 리조트 객실 둘 다).
+     * 그래서 사업자번호로 고른 등록 계정의 업소와 파일 정산 행의 업소가 다르면, 그 업소에 등록한 떠나요 계정이 하나뿐일 때 그 계정으로 본다.
      */
     private fun withDdnayoContent(
         parsed: List<Pair<ImportBatchEntity, SettlementFileName>>,
+        propertyByBatch: Map<Long, Long>,
     ): List<Pair<ImportBatchEntity, SettlementFileName>> {
         val ddnayo = parsed.filter { (batch, _) -> batch.source == OtaPlatform.DDNAYO }
         if (ddnayo.none { (_, name) -> name.account == null }) return parsed
 
         val rowsByBatch = importRowRepository.findByImportBatchIdIn(ddnayo.map { it.first.id!! })
             .groupBy({ it.importBatchId }, { jsonMapper.readValue(it.payload, PAYLOAD) })
+        // 정산 행이 없는 파일(행이 모두 중복·미매핑)은 행의 예약번호로 찾은 예약의 업소를 쓴다
+        val propertyByNumber = rowsByBatch.values.flatten().mapNotNull { it[RESERVATION_NUMBER]?.trim()?.takeIf(String::isNotEmpty) }
+            .toSet().takeIf { it.isNotEmpty() }
+            ?.let { numbers -> reservationRepository.findPropertiesByReservationNumbers(OtaPlatform.DDNAYO, numbers) }
+            .orEmpty().associate { it.reservationNumber to it.propertyId }
+        fun propertyOf(batchId: Long): Long? = propertyByBatch[batchId]
+            ?: rowsByBatch[batchId].orEmpty().mapNotNull { row -> row[RESERVATION_NUMBER]?.trim()?.let(propertyByNumber::get) }
+                .groupingBy { it }.eachCount().maxByOrNull { it.value }?.key
         val contentByBatch = ddnayo.associate { (batch, _) -> batch.id!! to DdnayoFileContent.of(rowsByBatch[batch.id].orEmpty()) }
-        val registered = settlementAccountRepository.findAll()
-            .filter { it.source == OtaPlatform.DDNAYO }
+        val ddnayoAccounts = settlementAccountRepository.findAll().filter { it.source == OtaPlatform.DDNAYO }
+        val registered = ddnayoAccounts
             .mapNotNull { account -> account.businessNumber?.let { it to account.account } }
             .toMap()
+        val propertyOfAccount = ddnayoAccounts.mapNotNull { a -> a.propertyId?.let { a.account to it } }.toMap()
+        val accountsByProperty = ddnayoAccounts.filter { it.propertyId != null }.groupBy({ it.propertyId!! }, { it.account })
         val fromNamedFiles = ddnayo
             .mapNotNull { (batch, name) ->
                 BusinessNumber.normalize(contentByBatch.getValue(batch.id!!).businessNumber)?.let { number -> name.account?.let { number to it } }
@@ -107,7 +165,14 @@ class SettlementCoverageService(
         return parsed.map { (batch, name) ->
             if (batch.source != OtaPlatform.DDNAYO || name.account != null) return@map batch to name
             val content = contentByBatch.getValue(batch.id!!)
-            val account = content.businessNumber?.let { ddnayoAccountName(it, registered, fromNamedFiles) }
+            val byNumber = content.businessNumber?.let { ddnayoAccountName(it, registered, fromNamedFiles) }
+            val property = propertyOf(batch.id!!)
+            val numberProperty = byNumber?.let { propertyOfAccount[it] }
+            val account = if (property != null && numberProperty != null && numberProperty != property) {
+                accountsByProperty[property]?.singleOrNull() ?: byNumber
+            } else {
+                byNumber
+            }
             batch to SettlementFileName(account, null, content.issuedOn, content.settlementDates)
         }
     }
@@ -198,6 +263,12 @@ internal fun weeklyDates(period: ClosedRange<LocalDate>): List<LocalDate> {
 }
 
 private val PAYLOAD = object : TypeReference<Map<String, String?>>() {}
+
+/** 떠나요·NOL 정산 파일 행의 예약번호 열 */
+private const val RESERVATION_NUMBER = "예약번호"
+
+/** NOL 정산 파일 행의 정산일 열 */
+private const val NOL_SETTLED_ON = "정산일"
 
 /**
  * 떠나요 원본 파일(AdjustCalendar)의 사업자번호로 정산 계정 이름을 정한다.
