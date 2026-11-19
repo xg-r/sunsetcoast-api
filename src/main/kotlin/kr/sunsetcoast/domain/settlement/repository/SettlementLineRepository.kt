@@ -48,19 +48,18 @@ interface SettlementLineRepository : JpaRepository<SettlementLineEntity, Long> {
 
     @Query(
         """
-        select new kr.sunsetcoast.domain.settlement.repository.BatchSettledOn(l.importBatchId, max(l.settledOn))
+        select distinct new kr.sunsetcoast.domain.settlement.repository.BatchSettledOn(l.importBatchId, l.settledOn)
         from SettlementLineEntity l
         where l.importBatchId is not null and l.settledOn is not null
-        group by l.importBatchId
         """
     )
-    fun maxSettledOnByBatch(): List<BatchSettledOn>
+    fun settledOnsByBatch(): List<BatchSettledOn>
 }
 
 /** 업로드 파일별·업소별 정산 행 수 */
 data class BatchPropertyCount(val batchId: Long, val propertyId: Long, val lines: Long)
 
-/** 업로드 파일별 마지막 정산일 */
+/** 업로드 파일별 정산일 (파일 × 정산일 한 행씩) */
 data class BatchSettledOn(val batchId: Long, val settledOn: LocalDate)
 
 /** 숙박일 월별 매출 집계 행 */
